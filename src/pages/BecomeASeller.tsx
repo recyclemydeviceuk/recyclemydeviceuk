@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Users, TrendingUp, Shield, Headphones, CheckCircle, Mail } from 'lucide-react';
+import { Users, TrendingUp, Shield, Headphones, CheckCircle, Mail, Loader } from 'lucide-react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
+import { recyclerApplicationAPI } from '../services/api';
 
 export default function BecomeASeller() {
   const [formData, setFormData] = useState({
@@ -13,9 +14,44 @@ export default function BecomeASeller() {
     businessDescription: '',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [loading, setLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Application submitted:', formData);
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await recyclerApplicationAPI.submit({
+        name: formData.contactName,
+        email: formData.email,
+        phone: formData.phone,
+        companyName: formData.companyName,
+        website: formData.website || undefined,
+        businessDescription: formData.businessDescription || undefined,
+      }) as any;
+
+      if (response.success) {
+        setSubmitted(true);
+        setFormData({
+          companyName: '',
+          contactName: '',
+          email: '',
+          phone: '',
+          website: '',
+          businessDescription: '',
+        });
+      } else {
+        setError('Submission failed. Please try again.');
+      }
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.message || err.message || 'Something went wrong. Please try again.';
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -80,38 +116,38 @@ export default function BecomeASeller() {
       <Header />
 
       {/* Hero Section */}
-      <section className="bg-gradient-to-br from-primary to-green-600 text-white py-20 px-4 sm:px-6 lg:px-8">
+      <section className="bg-gradient-to-br from-primary to-green-600 text-white py-12 sm:py-16 md:py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-4xl mx-auto text-center">
-          <h1 className="text-4xl md:text-5xl font-bold mb-6">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 sm:mb-5 md:mb-6">
             Partner With Recycle My Device
           </h1>
-          <p className="text-xl text-white/90 max-w-3xl mx-auto">
+          <p className="text-base sm:text-lg md:text-xl text-white/90 max-w-3xl mx-auto">
             Join the UK's leading phone recycling comparison platform and connect with thousands of customers looking to sell their devices.
           </p>
         </div>
       </section>
 
       {/* Why Partner With Us */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8 bg-white">
+      <section className="py-10 sm:py-12 md:py-16 px-4 sm:px-6 lg:px-8 bg-white">
         <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl font-bold text-gray-900 text-center mb-12">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 text-center mb-8 sm:mb-10 md:mb-12">
             Why Partner With Us?
           </h2>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 gap-4 sm:gap-5 md:gap-6">
             {benefits.map((benefit, index) => {
               const Icon = benefit.icon;
               return (
                 <div
                   key={index}
-                  className="bg-gray-50 rounded-xl p-6 text-center hover:shadow-lg transition-all hover:-translate-y-1 border border-gray-100"
+                  className="bg-gray-50 rounded-lg sm:rounded-xl p-5 sm:p-6 text-center hover:shadow-lg transition-all hover:-translate-y-1 border border-gray-100"
                 >
-                  <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
-                    <Icon className="w-8 h-8 text-white" />
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 bg-primary rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4 shadow-md">
+                    <Icon className="w-7 h-7 sm:w-8 sm:h-8 text-white" />
                   </div>
-                  <h3 className="text-lg font-bold text-gray-900 mb-2">
+                  <h3 className="text-sm sm:text-base md:text-lg lg:text-xl font-bold text-gray-900 mb-1.5 sm:mb-2">
                     {benefit.title}
                   </h3>
-                  <p className="text-sm text-gray-600 leading-relaxed">
+                  <p className="text-xs sm:text-sm md:text-base text-gray-600 leading-relaxed">
                     {benefit.description}
                   </p>
                 </div>
@@ -122,27 +158,27 @@ export default function BecomeASeller() {
       </section>
 
       {/* How It Works */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8">
+      <section className="py-10 sm:py-12 md:py-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-4xl mx-auto">
-          <h2 className="text-3xl font-bold text-gray-900 text-center mb-12">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 text-center mb-8 sm:mb-10 md:mb-12">
             How It Works
           </h2>
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-5 md:space-y-6">
             {steps.map((step) => (
               <div
                 key={step.number}
-                className="bg-white rounded-xl border border-gray-200 p-6 flex items-start space-x-5 hover:shadow-lg transition-all"
+                className="bg-white rounded-lg sm:rounded-xl border border-gray-200 p-4 sm:p-5 md:p-6 flex items-start space-x-3 sm:space-x-4 md:space-x-5 hover:shadow-lg transition-all"
               >
                 <div className="flex-shrink-0">
-                  <div className="w-14 h-14 bg-primary rounded-full flex items-center justify-center text-white font-bold text-xl shadow-lg">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 bg-primary rounded-full flex items-center justify-center text-white font-bold text-lg sm:text-xl shadow-lg">
                     {step.number}
                   </div>
                 </div>
-                <div className="flex-1 pt-2">
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">
+                <div className="flex-1 pt-1 sm:pt-2">
+                  <h3 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 mb-1.5 sm:mb-2">
                     {step.title}
                   </h3>
-                  <p className="text-base text-gray-600 leading-relaxed">
+                  <p className="text-sm sm:text-base md:text-lg text-gray-600 leading-relaxed">
                     {step.description}
                   </p>
                 </div>
@@ -153,17 +189,17 @@ export default function BecomeASeller() {
       </section>
 
       {/* Partner Requirements */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8 bg-white">
+      <section className="py-10 sm:py-12 md:py-16 px-4 sm:px-6 lg:px-8 bg-white">
         <div className="max-w-4xl mx-auto">
-          <h2 className="text-3xl font-bold text-gray-900 text-center mb-12">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 text-center mb-8 sm:mb-10 md:mb-12">
             Partner Requirements
           </h2>
-          <div className="bg-gray-50 rounded-xl border border-gray-200 p-8">
-            <ul className="space-y-4">
+          <div className="bg-gray-50 rounded-lg sm:rounded-xl border border-gray-200 p-5 sm:p-6 md:p-8">
+            <ul className="space-y-3 sm:space-y-4">
               {requirements.map((requirement, index) => (
-                <li key={index} className="flex items-start space-x-3">
-                  <CheckCircle className="w-6 h-6 text-primary flex-shrink-0 mt-0.5" />
-                  <span className="text-base text-gray-700">{requirement}</span>
+                <li key={index} className="flex items-start space-x-2 sm:space-x-3">
+                  <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-primary flex-shrink-0 mt-0.5" />
+                  <span className="text-sm sm:text-base md:text-lg text-gray-700">{requirement}</span>
                 </li>
               ))}
             </ul>
@@ -172,22 +208,46 @@ export default function BecomeASeller() {
       </section>
 
       {/* Application Form */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8">
+      <section className="py-10 sm:py-12 md:py-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-3xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-3">
+          <div className="text-center mb-8 sm:mb-10 md:mb-12">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-2 sm:mb-3">
               Apply Now
             </h2>
-            <p className="text-lg text-gray-600">
+            <p className="text-base sm:text-lg md:text-xl text-gray-600">
               Fill out the form below and our partnerships team will be in touch.
             </p>
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 p-8 shadow-lg">
-            <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="bg-white rounded-lg sm:rounded-xl border border-gray-200 p-5 sm:p-6 md:p-8 shadow-lg">
+            {submitted ? (
+              <div className="text-center py-8 sm:py-10 md:py-12">
+                <div className="w-16 h-16 sm:w-20 sm:h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6">
+                  <CheckCircle className="w-10 h-10 sm:w-12 sm:h-12 text-green-600" />
+                </div>
+                <h3 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-2 sm:mb-3">
+                  Application Submitted Successfully!
+                </h3>
+                <p className="text-base sm:text-lg md:text-xl text-gray-600 mb-5 sm:mb-6 max-w-md mx-auto">
+                  Thank you for your interest in partnering with us. Our team will review your application and get back to you within 2 business days.
+                </p>
+                <button
+                  onClick={() => setSubmitted(false)}
+                  className="text-sm sm:text-base text-primary font-semibold hover:underline"
+                >
+                  Submit Another Application
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5 md:space-y-6">
+                {error && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4">
+                    <p className="text-red-800 text-xs sm:text-sm font-medium">{error}</p>
+                  </div>
+                )}
               {/* Company Name */}
               <div>
-                <label htmlFor="companyName" className="block text-sm font-semibold text-gray-700 mb-2">
+                <label htmlFor="companyName" className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1.5 sm:mb-2">
                   Company Name <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -198,13 +258,13 @@ export default function BecomeASeller() {
                   onChange={handleChange}
                   placeholder="Your company name"
                   required
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                  className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
                 />
               </div>
 
               {/* Contact Name */}
               <div>
-                <label htmlFor="contactName" className="block text-sm font-semibold text-gray-700 mb-2">
+                <label htmlFor="contactName" className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1.5 sm:mb-2">
                   Contact Name <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -215,14 +275,14 @@ export default function BecomeASeller() {
                   onChange={handleChange}
                   placeholder="Your full name"
                   required
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                  className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
                 />
               </div>
 
               {/* Email and Phone */}
-              <div className="grid md:grid-cols-2 gap-6">
+              <div className="grid sm:grid-cols-2 gap-4 sm:gap-5 md:gap-6">
                 <div>
-                  <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label htmlFor="email" className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1.5 sm:mb-2">
                     Email <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -233,11 +293,11 @@ export default function BecomeASeller() {
                     onChange={handleChange}
                     placeholder="business@example.com"
                     required
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
                   />
                 </div>
                 <div>
-                  <label htmlFor="phone" className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label htmlFor="phone" className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1.5 sm:mb-2">
                     Phone <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -248,14 +308,14 @@ export default function BecomeASeller() {
                     onChange={handleChange}
                     placeholder="Your phone number"
                     required
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
                   />
                 </div>
               </div>
 
               {/* Website */}
               <div>
-                <label htmlFor="website" className="block text-sm font-semibold text-gray-700 mb-2">
+                <label htmlFor="website" className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1.5 sm:mb-2">
                   Website
                 </label>
                 <input
@@ -265,13 +325,13 @@ export default function BecomeASeller() {
                   value={formData.website}
                   onChange={handleChange}
                   placeholder="https://yourcompany.com"
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                  className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
                 />
               </div>
 
               {/* Business Description */}
               <div>
-                <label htmlFor="businessDescription" className="block text-sm font-semibold text-gray-700 mb-2">
+                <label htmlFor="businessDescription" className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1.5 sm:mb-2">
                   Tell us about your business
                 </label>
                 <textarea
@@ -281,39 +341,48 @@ export default function BecomeASeller() {
                   onChange={handleChange}
                   placeholder="Briefly describe your business, experience, and why you'd like to partner with us..."
                   rows={6}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all resize-none"
+                  className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all resize-none"
                 />
               </div>
 
-              {/* Submit Button */}
-              <button
-                type="submit"
-                className="w-full bg-primary text-white py-4 rounded-lg font-semibold text-lg hover:bg-primary-dark transition-colors shadow-md hover:shadow-lg"
-              >
-                Submit Application
-              </button>
-            </form>
+                {/* Submit Button */}
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-primary text-white py-3 sm:py-3.5 md:py-4 rounded-lg font-semibold text-base sm:text-lg hover:bg-primary-dark transition-colors shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                >
+                  {loading ? (
+                    <>
+                      <Loader className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                      <span>Submitting...</span>
+                    </>
+                  ) : (
+                    <span>Submit Application</span>
+                  )}
+                </button>
+              </form>
+            )}
           </div>
         </div>
       </section>
 
       {/* Contact CTA */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8 bg-white border-t">
+      <section className="py-10 sm:py-12 md:py-16 px-4 sm:px-6 lg:px-8 bg-white border-t">
         <div className="max-w-4xl mx-auto text-center">
-          <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Mail className="w-8 h-8 text-primary" />
+          <div className="w-14 h-14 sm:w-16 sm:h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6">
+            <Mail className="w-7 h-7 sm:w-8 sm:h-8 text-primary" />
           </div>
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-3 sm:mb-4">
             Have Questions?
           </h2>
-          <p className="text-lg text-gray-600 mb-6">
+          <p className="text-base sm:text-lg md:text-xl text-gray-600 mb-5 sm:mb-6">
             Our partnerships team is here to help. Get in touch to learn more about becoming a partner.
           </p>
           <a
             href="mailto:partnerships@recyclemydevice.co.uk"
-            className="inline-flex items-center space-x-2 text-primary font-semibold text-lg hover:underline"
+            className="inline-flex items-center space-x-2 text-primary font-semibold text-base sm:text-lg hover:underline break-all"
           >
-            <Mail className="w-5 h-5" />
+            <Mail className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
             <span>partnerships@recyclemydevice.co.uk</span>
           </a>
         </div>

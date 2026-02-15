@@ -1,32 +1,57 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogIn, Mail, Lock, Eye, EyeOff, Recycle } from 'lucide-react';
+import { ArrowRight, Mail, Recycle } from 'lucide-react';
 
 const RecyclerLogin: React.FC = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (!email) {
+      setError('Please enter your email');
+      return;
+    }
+
+    if (!email.includes('@')) {
+      setError('Please enter a valid email');
+      return;
+    }
+
     setIsLoading(true);
 
-    // Mock authentication - replace with actual API call
-    setTimeout(() => {
-      if (email && password) {
-        // Store recycler auth
-        localStorage.setItem('recyclerAuth', 'true');
-        localStorage.setItem('recyclerEmail', email);
-        navigate('/recycler/dashboard');
-      } else {
-        setError('Please enter both email and password');
+    try {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/auth/recycler/send-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to send OTP');
       }
+
+      // Success - navigate to OTP verification page
+      navigate('/recycler/verify-otp', { 
+        state: { 
+          email: email.trim(),
+          recyclerName: data.data?.recyclerName,
+          companyName: data.data?.companyName,
+        } 
+      });
+    } catch (err: any) {
+      setError(err.message || 'Failed to send OTP. Please try again.');
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -43,7 +68,7 @@ const RecyclerLogin: React.FC = () => {
 
         {/* Login Card */}
         <div className="bg-white rounded-3xl shadow-xl border border-gray-200 p-8">
-          <form onSubmit={handleLogin} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6">
             {/* Email Input */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -57,33 +82,9 @@ const RecyclerLogin: React.FC = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="your@email.com"
                   className="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1b981b]/50 focus:border-[#1b981b] transition-all"
+                  disabled={isLoading}
                   required
                 />
-              </div>
-            </div>
-
-            {/* Password Input */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  className="w-full pl-12 pr-12 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1b981b]/50 focus:border-[#1b981b] transition-all"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
               </div>
             </div>
 
@@ -94,7 +95,7 @@ const RecyclerLogin: React.FC = () => {
               </div>
             )}
 
-            {/* Login Button */}
+            {/* Send OTP Button */}
             <button
               type="submit"
               disabled={isLoading}
@@ -103,12 +104,12 @@ const RecyclerLogin: React.FC = () => {
               {isLoading ? (
                 <>
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>Signing in...</span>
+                  <span>Sending OTP...</span>
                 </>
               ) : (
                 <>
-                  <LogIn className="w-5 h-5" />
-                  <span>Sign In</span>
+                  <span>Send OTP</span>
+                  <ArrowRight className="w-5 h-5" />
                 </>
               )}
             </button>
@@ -116,9 +117,9 @@ const RecyclerLogin: React.FC = () => {
 
           {/* Footer Links */}
           <div className="mt-6 text-center space-y-2">
-            <a href="#" className="text-sm text-[#1b981b] hover:text-[#157a15] font-medium transition-colors">
-              Forgot your password?
-            </a>
+            <p className="text-xs text-gray-500">
+              An OTP will be sent to your registered email
+            </p>
             <p className="text-sm text-gray-500">
               New partner?{' '}
               <a href="/contact" className="text-[#1b981b] hover:text-[#157a15] font-medium transition-colors">

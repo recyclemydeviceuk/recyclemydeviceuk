@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, RefreshCw } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Recycle } from 'lucide-react';
 
-const AdminOTP: React.FC = () => {
+const RecyclerOTP: React.FC = () => {
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -12,10 +12,12 @@ const AdminOTP: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const email = location.state?.email || '';
+  const recyclerName = location.state?.recyclerName || '';
+  const companyName = location.state?.companyName || '';
 
   useEffect(() => {
     if (!email) {
-      navigate('/panel/login');
+      navigate('/recycler/login');
     }
   }, [email, navigate]);
 
@@ -85,8 +87,7 @@ const AdminOTP: React.FC = () => {
     setError('');
 
     try {
-      // Call backend API to verify OTP
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/auth/admin/verify-otp`, {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/auth/recycler/verify-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -104,11 +105,12 @@ const AdminOTP: React.FC = () => {
       }
 
       // Success - store auth token and navigate
-      localStorage.setItem('adminToken', data.data.token);
-      localStorage.setItem('adminEmail', data.data.admin.email);
-      localStorage.setItem('adminAuth', 'true');
+      localStorage.setItem('recyclerToken', data.data.token);
+      localStorage.setItem('recyclerEmail', data.data.recycler.email);
+      localStorage.setItem('recyclerId', data.data.recycler.id);
+      localStorage.setItem('recyclerAuth', 'true');
       
-      navigate('/panel');
+      navigate('/recycler/dashboard');
     } catch (err: any) {
       setError(err.message || 'Invalid OTP. Please try again.');
       setOtp(['', '', '', '', '', '']);
@@ -127,8 +129,7 @@ const AdminOTP: React.FC = () => {
     setError('');
     
     try {
-      // Call backend API to resend OTP
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/auth/admin/send-otp`, {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/auth/recycler/send-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -142,7 +143,6 @@ const AdminOTP: React.FC = () => {
         throw new Error(data.message || 'Failed to resend OTP');
       }
 
-      // Success - focus first input
       inputRefs.current[0]?.focus();
     } catch (err: any) {
       setError(err.message || 'Failed to resend OTP. Please try again.');
@@ -152,14 +152,13 @@ const AdminOTP: React.FC = () => {
   };
 
   const handleBack = () => {
-    navigate('/panel/login');
+    navigate('/recycler/login');
   };
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center p-4">
-      {/* OTP Card */}
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <div className="bg-white rounded-2xl shadow-xl border-2 border-[#1b981b] p-8 md:p-12">
+        <div className="bg-white rounded-3xl shadow-xl border border-gray-200 p-8">
           {/* Back button */}
           <button
             onClick={handleBack}
@@ -171,12 +170,8 @@ const AdminOTP: React.FC = () => {
 
           {/* Header */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center mb-4">
-              <img 
-                src="https://res.cloudinary.com/dn2sab6qc/image/upload/v1770564631/recycle_my_device_transparent_z6ra8s.png" 
-                alt="Recycle My Device" 
-                className="h-16 w-auto"
-              />
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-[#1b981b] to-[#157a15] rounded-2xl shadow-lg mb-4">
+              <Recycle className="w-8 h-8 text-white" />
             </div>
             <h1 className="text-3xl font-bold text-gray-800 mb-2">Verify OTP</h1>
             <p className="text-gray-600">
@@ -184,6 +179,11 @@ const AdminOTP: React.FC = () => {
               <br />
               <span className="font-semibold text-gray-800">{email}</span>
             </p>
+            {(recyclerName || companyName) && (
+              <p className="text-sm text-gray-500 mt-2">
+                Welcome back, <span className="font-semibold">{recyclerName || companyName}</span>
+              </p>
+            )}
           </div>
 
           {/* OTP Input */}
@@ -245,4 +245,4 @@ const AdminOTP: React.FC = () => {
   );
 };
 
-export default AdminOTP;
+export default RecyclerOTP;

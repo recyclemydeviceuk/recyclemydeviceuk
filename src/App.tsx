@@ -12,6 +12,7 @@ import ReviewRecycler from './pages/ReviewRecycler';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsAndConditions from './pages/TermsAndConditions';
 import Blog from './pages/Blog';
+import BlogDetail from './pages/BlogDetail';
 import AdminPanel from './pages/AdminPanel';
 import AdminLogin from './pages/AdminLogin';
 import AdminOTP from './pages/AdminOTP';
@@ -49,7 +50,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/sell-your-phone" element={<SellYourPhone />} />
-        <Route path="/phone/:phoneId" element={<PhoneDetail />} />
+        <Route path="/phone/:id" element={<PhoneDetail />} />
         <Route path="/checkout" element={<Checkout />} />
         <Route path="/order-confirmation" element={<OrderConfirmation />} />
         <Route path="/review-recycler" element={<ReviewRecycler />} />
@@ -57,6 +58,7 @@ function App() {
         <Route path="/contact" element={<ContactUs />} />
         <Route path="/faqs" element={<FAQs />} />
         <Route path="/blog" element={<Blog />} />
+        <Route path="/blog/:slug" element={<BlogDetail />} />
         <Route path="/become-a-seller" element={<BecomeASeller />} />
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/terms-and-conditions" element={<TermsAndConditions />} />

@@ -24,12 +24,29 @@ const AdminLogin: React.FC = () => {
 
     setIsLoading(true);
 
-    // Simulate API call to send OTP
-    setTimeout(() => {
+    try {
+      // Call backend API to send OTP
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/auth/admin/send-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to send OTP');
+      }
+
+      // Success - navigate to OTP verification page
+      navigate('/panel/verify-otp', { state: { email: email.trim() } });
+    } catch (err: any) {
+      setError(err.message || 'Failed to send OTP. Please try again.');
+    } finally {
       setIsLoading(false);
-      // Navigate to OTP page with email
-      navigate('/panel/verify-otp', { state: { email } });
-    }, 1500);
+    }
   };
 
   return (

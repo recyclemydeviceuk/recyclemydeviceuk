@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { ChevronDown, HelpCircle, MessageCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ChevronDown, HelpCircle, MessageCircle, Loader2, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
+import { faqAPI } from '../services/api';
 
 interface FAQ {
   question: string;
@@ -16,12 +17,96 @@ interface FAQCategory {
 
 export default function FAQs() {
   const [openIndex, setOpenIndex] = useState<string | null>(null);
+  const [faqCategories, setFaqCategories] = useState<FAQCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const toggleFAQ = (index: string) => {
     setOpenIndex(openIndex === index ? null : index);
   };
 
-  const faqCategories: FAQCategory[] = [
+  useEffect(() => {
+    const fetchFAQs = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await faqAPI.getAllFAQs();
+        
+        if (response.success && response.data) {
+          // Group FAQs by category
+          const groupedFAQs: { [key: string]: FAQ[] } = {};
+          
+          response.data.forEach((faq: any) => {
+            if (!groupedFAQs[faq.category]) {
+              groupedFAQs[faq.category] = [];
+            }
+            groupedFAQs[faq.category].push({
+              question: faq.question,
+              answer: faq.answer,
+            });
+          });
+          
+          // Convert to FAQCategory array
+          const categories: FAQCategory[] = Object.keys(groupedFAQs).map(category => ({
+            title: category,
+            faqs: groupedFAQs[category],
+          }));
+          
+          setFaqCategories(categories);
+        } else {
+          setError('Failed to load FAQs');
+        }
+      } catch (err: any) {
+        console.error('Error fetching FAQs:', err);
+        setError(err.response?.data?.message || 'Failed to load FAQs. Please try again later.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFAQs();
+  }, []);
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <div className="flex flex-col items-center justify-center min-h-[400px]">
+            <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
+            <p className="text-gray-600">Loading FAQs...</p>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <div className="flex flex-col items-center justify-center min-h-[400px]">
+            <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Failed to Load FAQs</h2>
+            <p className="text-gray-600 mb-6">{error}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="bg-primary text-white px-6 py-3 rounded-lg font-semibold hover:bg-primary-dark transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  const mockCategories: FAQCategory[] = [
     {
       title: 'Getting Started',
       faqs: [
@@ -154,6 +239,9 @@ export default function FAQs() {
     },
   ];
 
+  // Use backend data if available, otherwise fallback to empty
+  const displayCategories = faqCategories.length > 0 ? faqCategories : mockCategories;
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
@@ -176,7 +264,7 @@ export default function FAQs() {
       {/* FAQ Sections */}
       <section className="py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-4xl mx-auto space-y-8">
-          {faqCategories.map((category, categoryIndex) => (
+          {displayCategories.map((category, categoryIndex) => (
             <div key={categoryIndex}>
               <h2 className="text-2xl font-bold text-gray-900 mb-4">
                 {category.title}

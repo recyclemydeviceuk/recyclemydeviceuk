@@ -1,17 +1,99 @@
+import { useState, useEffect } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
-import { CheckCircle, Mail, Printer, Star } from 'lucide-react';
+import { CheckCircle, Mail, Loader2, AlertCircle } from 'lucide-react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
+import { orderAPI } from '../services/api';
+
+interface OrderResponse {
+  success: boolean;
+  message?: string;
+  data?: any;
+}
 
 export default function OrderConfirmation() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { orderNumber, phone, buyer, price, email } = location.state || {};
+  
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [orderData, setOrderData] = useState<any>(null);
+  
+  const { orderNumber, email } = location.state || {};
 
-  if (!orderNumber) {
-    navigate('/sell-your-phone');
-    return null;
+  useEffect(() => {
+    const fetchOrderDetails = async () => {
+      if (!orderNumber || !email) {
+        console.warn('No order number or email found, redirecting to sell-your-phone');
+        navigate('/sell-your-phone');
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // Fetch order details from backend
+        const response = await orderAPI.verifyOrder(orderNumber, email) as unknown as OrderResponse;
+        
+        if (response.success) {
+          setOrderData(response.data);
+        } else {
+          setError(response.message || 'Failed to fetch order details');
+        }
+      } catch (err: any) {
+        console.error('Error fetching order:', err);
+        setError(err.response?.data?.message || 'Failed to load order details');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOrderDetails();
+  }, [orderNumber, email, navigate]);
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <div className="flex flex-col items-center justify-center min-h-[400px]">
+            <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
+            <p className="text-gray-600">Loading order details...</p>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
   }
+
+  // Error state
+  if (error || !orderData) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <div className="flex flex-col items-center justify-center min-h-[400px]">
+            <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Order Not Found</h2>
+            <p className="text-gray-600 mb-6">{error || 'Unable to load order details'}</p>
+            <Link
+              to="/sell-your-phone"
+              className="bg-primary text-white px-6 py-3 rounded-lg font-semibold hover:bg-primary-dark transition-colors"
+            >
+              Back to Home
+            </Link>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  // Extract data from backend response
+  const device = orderData.deviceId;
+  const recycler = orderData.recyclerId;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -27,7 +109,7 @@ export default function OrderConfirmation() {
             Order Confirmed!
           </h1>
           <p className="text-gray-600 mb-2">
-            Order Number: <span className="font-bold text-primary">{orderNumber}</span>
+            Order Number: <span className="font-bold text-primary">{orderData.orderNumber}</span>
           </p>
           <p className="text-gray-600">
             Thank you for choosing Recycle My Device. Your order has been submitted successfully.
@@ -43,29 +125,32 @@ export default function OrderConfirmation() {
           <div className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg mb-4">
             <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center p-2">
               <img 
-                src="https://storage.googleapis.com/atomjuice-product-images/apple/iphone-16-pro/default.png" 
-                alt="Phone"
+                src={device?.image || 'https://storage.googleapis.com/atomjuice-product-images/apple/iphone-16-pro/default.png'} 
+                alt={device?.name || 'Device'}
                 className="w-full h-full object-contain"
+                onError={(e) => {
+                  e.currentTarget.src = 'https://storage.googleapis.com/atomjuice-product-images/apple/iphone-16-pro/default.png';
+                }}
               />
             </div>
             <div className="flex-1">
-              <h3 className="font-bold text-gray-900">iPhone 11 Pro</h3>
-              <p className="text-sm text-gray-600">{phone}</p>
+              <h3 className="font-semibold text-gray-900">{device?.name || 'Device'}</h3>
+              <p className="text-sm text-gray-600">{orderData.storage} • {orderData.deviceCondition}</p>
+              <p className="text-sm text-gray-600 mt-1">Selling to: {recycler?.companyName || recycler?.name}</p>
             </div>
           </div>
 
           <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
             <p className="text-sm text-gray-600 mb-1">Sold to</p>
             <div className="flex items-center space-x-2">
-              <span className="text-xl">{buyer.logo}</span>
-              <span className="font-bold text-gray-900">{buyer.name}</span>
+              <span className="font-bold text-gray-900">{recycler?.companyName || recycler?.name}</span>
             </div>
           </div>
 
           <div className="border-t pt-4">
             <div className="flex justify-between items-center">
               <span className="text-lg font-semibold text-gray-900">You'll Receive</span>
-              <span className="text-3xl font-bold text-primary">£{price}</span>
+              <span className="text-3xl font-bold text-primary">£{orderData.amount}</span>
             </div>
           </div>
         </div>
@@ -77,25 +162,13 @@ export default function OrderConfirmation() {
             <div>
               <h3 className="font-bold text-gray-900 mb-1">Confirmation Email Sent</h3>
               <p className="text-sm text-gray-600 mb-2">
-                Sent to <span className="font-semibold text-blue-600">{email}</span>
+                Sent to <span className="font-semibold text-blue-600">{orderData.customerEmail}</span>
               </p>
               <p className="text-sm text-gray-600">
                 Check your inbox for order details and your free shipping label.
               </p>
             </div>
           </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="grid md:grid-cols-2 gap-4 mb-8">
-          <button className="flex items-center justify-center space-x-2 bg-white border-2 border-primary text-primary px-6 py-4 rounded-lg font-semibold hover:bg-green-50 transition-colors">
-            <Mail className="w-5 h-5" />
-            <span>View Your Email</span>
-          </button>
-          <button className="flex items-center justify-center space-x-2 bg-white border-2 border-gray-300 text-gray-700 px-6 py-4 rounded-lg font-semibold hover:bg-gray-50 transition-colors">
-            <Printer className="w-5 h-5" />
-            <span>Print Shipping Label</span>
-          </button>
         </div>
 
         {/* What Happens Next */}
@@ -137,40 +210,20 @@ export default function OrderConfirmation() {
           </div>
         </div>
 
-        {/* Rate Recycler Card */}
-        <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-2xl border-2 border-yellow-200 p-8 mb-6 shadow-lg">
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-yellow-400 to-amber-500 rounded-2xl flex items-center justify-center shadow-lg">
-                <Star className="w-8 h-8 text-white fill-white" />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-gray-900 mb-1">Rate Your Experience</h3>
-                <p className="text-sm text-gray-600">Help others by reviewing {buyer.name}</p>
-              </div>
-            </div>
-            <Link
-              to="/review-recycler"
-              state={{ recyclerName: buyer.name, orderNumber }}
-              className="flex items-center gap-2 bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-500 hover:to-amber-600 text-white px-8 py-4 rounded-xl font-bold transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-            >
-              <Star className="w-5 h-5" />
-              Rate Now
-            </Link>
-          </div>
-        </div>
-
         {/* CTAs */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
           <Link
             to="/sell-your-phone"
             className="inline-block bg-primary text-white px-8 py-4 rounded-lg font-semibold hover:bg-primary-dark transition-colors shadow-md"
           >
-            Sell Another Device →
+            Explore More
           </Link>
-          <button className="inline-block bg-white border-2 border-gray-300 text-gray-700 px-8 py-4 rounded-lg font-semibold hover:bg-gray-50 transition-colors">
-            Track Your Order
-          </button>
+          <Link
+            to="/faqs"
+            className="inline-block bg-white border-2 border-gray-300 text-gray-700 px-8 py-4 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
+          >
+            FAQs
+          </Link>
         </div>
       </div>
 

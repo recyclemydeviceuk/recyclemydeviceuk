@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { Star, Send, ArrowLeft, CheckCircle2, Building2, Award, MessageSquare } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Star, Send, ArrowLeft, CheckCircle2, Building2, Award, MessageSquare, Loader2, AlertCircle } from 'lucide-react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
+import { customerAPI } from '../services/api';
 
 interface ReviewData {
   recyclerName: string;
@@ -11,37 +12,127 @@ interface ReviewData {
   review: string;
 }
 
+interface OrderData {
+  orderNumber: string;
+  recyclerId: {
+    _id: string;
+    name?: string;
+    companyName?: string;
+  };
+  customerName: string;
+  customerEmail: string;
+  deviceId?: {
+    name: string;
+  };
+  amount: number;
+}
+
 export default function ReviewRecycler() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { recyclerName = 'GreenTech Recyclers', orderNumber = 'RM1234' } = location.state || {};
-
+  const [searchParams] = useSearchParams();
+  
+  const [orderData, setOrderData] = useState<OrderData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [rating, setRating] = useState<number>(0);
   const [hoverRating, setHoverRating] = useState<number>(0);
   const [review, setReview] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Get params from URL or location state
+  const orderNumberParam = searchParams.get('order');
+  const emailParam = searchParams.get('email');
+  const { recyclerName: stateRecyclerName, orderNumber: stateOrderNumber } = location.state || {};
+
+  // Fetch order data on mount
+  useEffect(() => {
+    const fetchOrderData = async () => {
+      // If coming from URL params, verify and fetch order
+      if (orderNumberParam && emailParam) {
+        try {
+          setLoading(true);
+          setError(null);
+          
+          // Check eligibility first
+          const eligibilityResponse: any = await customerAPI.reviews.checkEligibility(
+            orderNumberParam,
+            emailParam
+          );
+
+          if (!eligibilityResponse.success || !eligibilityResponse.eligible) {
+            setError(eligibilityResponse.message || 'This order is not eligible for review');
+            setLoading(false);
+            return;
+          }
+
+          // Verify and get order details
+          const orderResponse: any = await customerAPI.orders.verifyOrder(
+            orderNumberParam,
+            emailParam
+          );
+
+          if (orderResponse.success && orderResponse.data) {
+            setOrderData(orderResponse.data);
+          } else {
+            setError('Could not load order details');
+          }
+        } catch (err: any) {
+          console.error('Error fetching order:', err);
+          setError(err?.message || 'Failed to load order information');
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        // Using state from navigation
+        setLoading(false);
+      }
+    };
+
+    fetchOrderData();
+  }, [orderNumberParam, emailParam]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (rating === 0) {
       alert('Please select a rating');
       return;
     }
+
+    const orderNumber = orderData?.orderNumber || stateOrderNumber || orderNumberParam;
+    const email = orderData?.customerEmail || emailParam;
+    const customerName = orderData?.customerName;
+
+    if (!orderNumber || !email) {
+      alert('Missing order information');
+      return;
+    }
     
-    // TODO: Submit to backend API
-    console.log('Review submitted:', {
-      recyclerName,
-      orderNumber,
-      rating,
-      review,
-    });
+    setSubmitting(true);
     
-    setSubmitted(true);
-    
-    // Redirect after 3 seconds
-    setTimeout(() => {
-      navigate('/');
-    }, 3000);
+    try {
+      await customerAPI.reviews.submit({
+        orderNumber,
+        email,
+        rating,
+        comment: review,
+        customerName,
+      });
+      
+      setSubmitted(true);
+      
+      // Redirect after 3 seconds
+      setTimeout(() => {
+        navigate('/');
+      }, 3000);
+    } catch (error: any) {
+      console.error('Submit review error:', error);
+      alert(error?.message || 'Failed to submit review. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleStarClick = (value: number) => {
@@ -63,6 +154,51 @@ export default function ReviewRecycler() {
     if (rating <= 4) return 'text-yellow-500';
     return 'text-green-500';
   };
+
+  const recyclerName = orderData?.recyclerId?.companyName || orderData?.recyclerId?.name || stateRecyclerName || 'GreenTech Recyclers';
+  const orderNumber = orderData?.orderNumber || stateOrderNumber || orderNumberParam || 'RM1234';
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+          <div className="bg-white rounded-3xl border-2 border-gray-200 p-12 shadow-2xl text-center">
+            <Loader2 className="w-16 h-16 text-primary mx-auto mb-4 animate-spin" />
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Loading Order Details...</h2>
+            <p className="text-gray-600">Please wait while we verify your order</p>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+          <div className="bg-white rounded-3xl border-2 border-red-200 p-12 shadow-2xl text-center">
+            <div className="w-24 h-24 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <AlertCircle className="w-12 h-12 text-red-500" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Unable to Load Review</h2>
+            <p className="text-lg text-gray-600 mb-6">{error}</p>
+            <button
+              onClick={() => navigate('/')}
+              className="px-8 py-3 bg-primary text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors"
+            >
+              Go to Homepage
+            </button>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
   if (submitted) {
     return (
@@ -247,11 +383,20 @@ export default function ReviewRecycler() {
               </button>
               <button
                 type="submit"
-                disabled={rating === 0}
+                disabled={rating === 0 || submitting}
                 className="flex-1 flex items-center justify-center gap-3 px-8 py-4 bg-gradient-to-r from-primary to-blue-600 hover:from-blue-600 hover:to-primary text-white rounded-2xl font-bold text-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
               >
-                <Send className="w-5 h-5" />
-                Submit Review
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-5 h-5" />
+                    Submit Review
+                  </>
+                )}
               </button>
             </div>
 

@@ -7,6 +7,9 @@ interface FormData {
   name: string;
   description: string;
   brand: string;
+  category: string;
+  storageOptions: string[];
+  conditionOptions: string[];
   image: File | null;
 }
 
@@ -16,6 +19,9 @@ const AddDevice: React.FC = () => {
     name: '',
     description: '',
     brand: '',
+    category: '',
+    storageOptions: [],
+    conditionOptions: ['Excellent', 'Good', 'Fair', 'Poor'],
     image: null,
   });
 
@@ -34,6 +40,22 @@ const AddDevice: React.FC = () => {
     'Nothing',
     'Motorola',
   ];
+
+  const categories = [
+    { value: 'smartphone', label: 'Smartphone' },
+    { value: 'tablet', label: 'Tablet' },
+    { value: 'laptop', label: 'Laptop' },
+    { value: 'smartwatch', label: 'Smartwatch' },
+    { value: 'gaming', label: 'Gaming Console' },
+    { value: 'other', label: 'Other' },
+  ];
+
+  const storageOptionsPresets = {
+    smartphone: ['64GB', '128GB', '256GB', '512GB', '1TB'],
+    tablet: ['64GB', '128GB', '256GB', '512GB', '1TB', '2TB'],
+    laptop: ['256GB', '512GB', '1TB', '2TB'],
+    default: ['64GB', '128GB', '256GB', '512GB', '1TB'],
+  };
 
   const handleInputChange = (field: keyof FormData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -83,6 +105,12 @@ const AddDevice: React.FC = () => {
     }
     if (!formData.brand) {
       newErrors.brand = 'Please select a brand';
+    }
+    if (!formData.category) {
+      newErrors.category = 'Please select a category';
+    }
+    if (formData.storageOptions.length === 0) {
+      newErrors.storageOptions = 'Please add at least one storage option';
     }
 
     setErrors(newErrors);
@@ -163,31 +191,135 @@ const AddDevice: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Brand Selection */}
+                  {/* Brand and Category Row */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Brand Selection */}
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Brand *
+                      </label>
+                      <select
+                        value={formData.brand}
+                        onChange={(e) => handleInputChange('brand', e.target.value)}
+                        className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1b981b] transition-all bg-white cursor-pointer ${
+                          errors.brand ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                        }`}
+                      >
+                        <option value="">Select a brand</option>
+                        {brands.map((brand) => (
+                          <option key={brand} value={brand}>
+                            {brand}
+                          </option>
+                        ))}
+                      </select>
+                      {errors.brand && (
+                        <p className="text-sm text-red-600 mt-1 flex items-center">
+                          <Info className="w-4 h-4 mr-1" />
+                          {errors.brand}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Category Selection */}
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Category *
+                      </label>
+                      <select
+                        value={formData.category}
+                        onChange={(e) => {
+                          const newCategory = e.target.value;
+                          handleInputChange('category', newCategory);
+                          // Auto-populate storage options based on category
+                          if (newCategory && formData.storageOptions.length === 0) {
+                            const preset = storageOptionsPresets[newCategory as keyof typeof storageOptionsPresets] || storageOptionsPresets.default;
+                            handleInputChange('storageOptions', preset);
+                          }
+                        }}
+                        className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1b981b] transition-all bg-white cursor-pointer ${
+                          errors.category ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                        }`}
+                      >
+                        <option value="">Select a category</option>
+                        {categories.map((cat) => (
+                          <option key={cat.value} value={cat.value}>
+                            {cat.label}
+                          </option>
+                        ))}
+                      </select>
+                      {errors.category && (
+                        <p className="text-sm text-red-600 mt-1 flex items-center">
+                          <Info className="w-4 h-4 mr-1" />
+                          {errors.category}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Storage Options */}
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Brand *
+                      Storage Options * <span className="text-xs text-gray-500">(Recyclers will set prices per storage)</span>
                     </label>
-                    <select
-                      value={formData.brand}
-                      onChange={(e) => handleInputChange('brand', e.target.value)}
-                      className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1b981b] transition-all bg-white cursor-pointer ${
-                        errors.brand ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                      }`}
-                    >
-                      <option value="">Select a brand</option>
-                      {brands.map((brand) => (
-                        <option key={brand} value={brand}>
-                          {brand}
-                        </option>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {formData.storageOptions.map((storage, index) => (
+                        <span
+                          key={index}
+                          className="inline-flex items-center px-3 py-1.5 bg-[#1b981b] text-white rounded-lg text-sm font-medium"
+                        >
+                          {storage}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newOptions = formData.storageOptions.filter((_, i) => i !== index);
+                              handleInputChange('storageOptions', newOptions);
+                            }}
+                            className="ml-2 hover:text-red-200 transition-colors"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
                       ))}
-                    </select>
-                    {errors.brand && (
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="e.g., 128GB"
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const input = e.currentTarget;
+                            const value = input.value.trim();
+                            if (value && !formData.storageOptions.includes(value)) {
+                              handleInputChange('storageOptions', [...formData.storageOptions, value]);
+                              input.value = '';
+                            }
+                          }
+                        }}
+                        className="flex-1 px-4 py-2 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1b981b] transition-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                          const value = input.value.trim();
+                          if (value && !formData.storageOptions.includes(value)) {
+                            handleInputChange('storageOptions', [...formData.storageOptions, value]);
+                            input.value = '';
+                          }
+                        }}
+                        className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-medium transition-all"
+                      >
+                        Add
+                      </button>
+                    </div>
+                    {errors.storageOptions && (
                       <p className="text-sm text-red-600 mt-1 flex items-center">
                         <Info className="w-4 h-4 mr-1" />
-                        {errors.brand}
+                        {errors.storageOptions}
                       </p>
                     )}
+                    <p className="text-xs text-gray-500 mt-1">Press Enter or click Add to add storage options</p>
                   </div>
 
                   {/* Description */}
@@ -210,6 +342,7 @@ const AddDevice: React.FC = () => {
                         {errors.description}
                       </p>
                     )}
+                    <p className="text-xs text-gray-500 mt-1">Admins manage device info. Recyclers set prices per storage/condition.</p>
                   </div>
                 </div>
               </div>

@@ -176,100 +176,100 @@ const ContactSubmissions: React.FC = () => {
       <div className="flex-1 flex flex-col">
         {/* Header */}
         <header className="bg-white border-b-2 border-gray-200 shadow-sm">
-          <div className="px-8 py-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-800">Contact Form Submissions</h1>
-                <p className="text-sm text-gray-600 mt-1">Manage customer inquiries and support requests</p>
+          <div className="px-4 sm:px-6 md:px-8 py-3 sm:py-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-800 truncate">Contact Form Submissions</h1>
+                <p className="text-xs sm:text-sm text-gray-600 mt-0.5 sm:mt-1 hidden sm:block">Manage customer inquiries and support requests</p>
               </div>
               <button
                 onClick={handleLogout}
-                className="flex items-center space-x-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl transition-all duration-200"
+                className="flex items-center space-x-1.5 sm:space-x-2 px-3 sm:px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg sm:rounded-xl transition-all duration-200 whitespace-nowrap"
               >
-                <LogOut className="w-4 h-4" />
-                <span className="font-medium">Logout</span>
+                <LogOut className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <span className="text-xs sm:text-sm font-medium">Logout</span>
               </button>
             </div>
           </div>
         </header>
 
         {/* Main Content */}
-        <main className="flex-1 overflow-y-auto p-8">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8">
           <div className="max-w-7xl mx-auto">
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-              <div className="bg-white rounded-xl border-2 border-[#1b981b] p-6 shadow-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Total Submissions</p>
-                    <p className="text-3xl font-bold text-gray-800">{totalSubmissions}</p>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 mb-6 sm:mb-8">
+              <div className="bg-white rounded-lg sm:rounded-xl border-2 border-[#1b981b] p-4 sm:p-5 md:p-6 shadow-lg">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm text-gray-600 mb-0.5 sm:mb-1">Total Submissions</p>
+                    <p className="text-2xl sm:text-3xl font-bold text-gray-800">{totalSubmissions}</p>
                   </div>
-                  <div className="w-12 h-12 bg-[#1b981b] rounded-xl flex items-center justify-center">
-                    <MessageSquare className="w-6 h-6 text-white" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl border-2 border-blue-500 p-6 shadow-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">New Messages</p>
-                    <p className="text-3xl font-bold text-gray-800">{newSubmissions}</p>
-                    <p className="text-xs text-blue-600 mt-1 font-semibold">Needs Attention</p>
-                  </div>
-                  <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center">
-                    <Mail className="w-6 h-6 text-white" />
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#1b981b] rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0">
+                    <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white rounded-xl border-2 border-yellow-500 p-6 shadow-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Read</p>
-                    <p className="text-3xl font-bold text-gray-800">{readSubmissions}</p>
+              <div className="bg-white rounded-lg sm:rounded-xl border-2 border-blue-500 p-4 sm:p-5 md:p-6 shadow-lg">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm text-gray-600 mb-0.5 sm:mb-1">New Messages</p>
+                    <p className="text-2xl sm:text-3xl font-bold text-gray-800">{newSubmissions}</p>
+                    <p className="text-[10px] sm:text-xs text-blue-600 mt-0.5 sm:mt-1 font-semibold">Needs Attention</p>
                   </div>
-                  <div className="w-12 h-12 bg-yellow-500 rounded-xl flex items-center justify-center">
-                    <Eye className="w-6 h-6 text-white" />
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-500 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0">
+                    <Mail className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white rounded-xl border-2 border-green-500 p-6 shadow-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Responded</p>
-                    <p className="text-3xl font-bold text-gray-800">{respondedSubmissions}</p>
+              <div className="bg-white rounded-lg sm:rounded-xl border-2 border-yellow-500 p-4 sm:p-5 md:p-6 shadow-lg">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm text-gray-600 mb-0.5 sm:mb-1">Read</p>
+                    <p className="text-2xl sm:text-3xl font-bold text-gray-800">{readSubmissions}</p>
                   </div>
-                  <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center">
-                    <CheckCircle className="w-6 h-6 text-white" />
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-yellow-500 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0">
+                    <Eye className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg sm:rounded-xl border-2 border-green-500 p-4 sm:p-5 md:p-6 shadow-lg">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm text-gray-600 mb-0.5 sm:mb-1">Responded</p>
+                    <p className="text-2xl sm:text-3xl font-bold text-gray-800">{respondedSubmissions}</p>
+                  </div>
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-500 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0">
+                    <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Search and Filters */}
-            <div className="bg-white rounded-xl border-2 border-gray-200 shadow-sm p-6 mb-6">
-              <div className="flex flex-col lg:flex-row gap-4">
+            <div className="bg-white rounded-lg sm:rounded-xl border-2 border-gray-200 shadow-sm p-4 sm:p-5 md:p-6 mb-4 sm:mb-6">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                 {/* Search Bar */}
                 <div className="flex-1 relative">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
                   <input
                     type="text"
-                    placeholder="Search by name, email, subject, or order number..."
+                    placeholder="Search by name, email, subject..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1b981b] focus:border-[#1b981b] transition-all"
+                    className="w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-2.5 sm:py-3 text-sm sm:text-base border-2 border-gray-200 rounded-lg sm:rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1b981b] focus:border-[#1b981b] transition-all"
                   />
                 </div>
 
                 {/* Status Filter */}
                 <div className="flex items-center gap-2">
-                  <Filter className="w-5 h-5 text-gray-500" />
+                  <Filter className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" />
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1b981b] focus:border-[#1b981b] transition-all bg-white cursor-pointer"
+                    className="px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border-2 border-gray-200 rounded-lg sm:rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1b981b] focus:border-[#1b981b] transition-all bg-white cursor-pointer"
                   >
                     <option value="all">All Status</option>
                     <option value="new">New</option>
@@ -281,68 +281,68 @@ const ContactSubmissions: React.FC = () => {
             </div>
 
             {/* Results Count */}
-            <div className="mb-4">
-              <p className="text-sm text-gray-600">
+            <div className="mb-3 sm:mb-4">
+              <p className="text-xs sm:text-sm text-gray-600">
                 Showing <span className="font-semibold text-gray-900">{filteredSubmissions.length}</span> of <span className="font-semibold text-gray-900">{totalSubmissions}</span> submissions
               </p>
             </div>
 
             {/* Submissions List */}
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               {filteredSubmissions.map((submission) => (
                 <div
                   key={submission.id}
-                  className="bg-white rounded-xl border-2 border-gray-200 hover:border-[#1b981b] hover:shadow-lg transition-all duration-200 p-6"
+                  className="bg-white rounded-lg sm:rounded-xl border-2 border-gray-200 hover:border-[#1b981b] hover:shadow-lg transition-all duration-200 p-4 sm:p-5 md:p-6"
                 >
-                  <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+                  <div className="flex flex-col gap-4">
                     {/* Submission Info */}
-                    <div className="flex-1 space-y-3">
+                    <div className="flex-1 space-y-2 sm:space-y-3">
                       {/* Name and Status */}
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <h3 className="text-lg font-bold text-gray-900">{submission.fullName}</h3>
-                        <span className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border-2 ${getStatusColor(submission.status)}`}>
+                      <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                        <h3 className="text-base sm:text-lg font-bold text-gray-900">{submission.fullName}</h3>
+                        <span className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-semibold border-2 ${getStatusColor(submission.status)}`}>
                           {getStatusIcon(submission.status)}
                           {submission.status.charAt(0).toUpperCase() + submission.status.slice(1)}
                         </span>
                       </div>
 
                       {/* Contact Details */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                        <div className="flex items-center gap-2">
-                          <Mail className="w-4 h-4 text-gray-400" />
-                          <span className="text-gray-900">{submission.email}</span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 text-xs sm:text-sm">
+                        <div className="flex items-center gap-1.5 sm:gap-2">
+                          <Mail className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" />
+                          <span className="text-gray-900 truncate">{submission.email}</span>
                         </div>
                         {submission.orderNumber && (
-                          <div className="flex items-center gap-2">
-                            <MessageSquare className="w-4 h-4 text-gray-400" />
+                          <div className="flex items-center gap-1.5 sm:gap-2">
+                            <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" />
                             <span className="text-gray-900">Order: {submission.orderNumber}</span>
                           </div>
                         )}
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4 text-gray-400" />
+                        <div className="flex items-center gap-1.5 sm:gap-2">
+                          <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" />
                           <span className="text-gray-900">{submission.submittedDate}</span>
                         </div>
                       </div>
 
                       {/* Subject */}
                       <div>
-                        <p className="text-sm font-semibold text-gray-700">Subject:</p>
-                        <p className="text-base font-bold text-gray-900 mt-1">{submission.subject}</p>
+                        <p className="text-xs sm:text-sm font-semibold text-gray-700">Subject:</p>
+                        <p className="text-sm sm:text-base font-bold text-gray-900 mt-0.5 sm:mt-1">{submission.subject}</p>
                       </div>
 
                       {/* Message Preview */}
-                      <div className="bg-gray-50 rounded-lg p-3">
-                        <p className="text-sm text-gray-700 line-clamp-2">{submission.message}</p>
+                      <div className="bg-gray-50 rounded-lg p-2.5 sm:p-3">
+                        <p className="text-xs sm:text-sm text-gray-700 line-clamp-2">{submission.message}</p>
                       </div>
                     </div>
 
                     {/* View Button */}
-                    <div className="flex items-center gap-2 lg:border-l-2 lg:pl-6 border-gray-200">
+                    <div className="flex items-center pt-3 sm:pt-0 border-t sm:border-t-0 sm:border-l-0 border-gray-200">
                       <button
                         onClick={() => handleViewDetails(submission)}
-                        className="flex items-center gap-2 px-6 py-3 bg-[#1b981b] hover:bg-[#157a15] text-white rounded-xl transition-all duration-200 font-semibold whitespace-nowrap"
+                        className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 bg-[#1b981b] hover:bg-[#157a15] text-white rounded-lg sm:rounded-xl transition-all duration-200 text-sm sm:text-base font-semibold whitespace-nowrap"
                       >
-                        <Eye className="w-5 h-5" />
+                        <Eye className="w-4 h-4 sm:w-5 sm:h-5" />
                         <span>View Details</span>
                       </button>
                     </div>
@@ -353,10 +353,10 @@ const ContactSubmissions: React.FC = () => {
 
             {/* Empty State */}
             {filteredSubmissions.length === 0 && (
-              <div className="bg-white rounded-xl border-2 border-gray-200 p-12 text-center">
-                <MessageSquare className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-bold text-gray-900 mb-2">No submissions found</h3>
-                <p className="text-gray-600">Try adjusting your search or filter criteria</p>
+              <div className="bg-white rounded-lg sm:rounded-xl border-2 border-gray-200 p-8 sm:p-12 text-center">
+                <MessageSquare className="w-12 h-12 sm:w-16 sm:h-16 text-gray-300 mx-auto mb-3 sm:mb-4" />
+                <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-1.5 sm:mb-2">No submissions found</h3>
+                <p className="text-sm sm:text-base text-gray-600">Try adjusting your search or filter criteria</p>
               </div>
             )}
           </div>
@@ -365,81 +365,81 @@ const ContactSubmissions: React.FC = () => {
 
       {/* Detail Modal */}
       {showDetailModal && selectedSubmission && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="bg-gradient-to-r from-[#1b981b] to-[#157a15] px-6 py-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-white">Contact Submission Details</h2>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4">
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="bg-gradient-to-r from-[#1b981b] to-[#157a15] px-4 sm:px-6 py-3 sm:py-4">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-base sm:text-lg md:text-xl font-bold text-white">Contact Submission Details</h2>
                 <button
                   onClick={() => setShowDetailModal(false)}
-                  className="p-2 hover:bg-white/20 rounded-lg transition-all duration-200"
+                  className="p-1.5 sm:p-2 hover:bg-white/20 rounded-lg transition-all duration-200 flex-shrink-0"
                 >
-                  <XCircle className="w-6 h-6 text-white" />
+                  <XCircle className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </button>
               </div>
             </div>
 
-            <div className="p-6 space-y-6">
+            <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
               {/* Status */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
-                <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border-2 ${getStatusColor(selectedSubmission.status)}`}>
+                <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1.5 sm:mb-2">Status</label>
+                <span className={`inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold border-2 ${getStatusColor(selectedSubmission.status)}`}>
                   {getStatusIcon(selectedSubmission.status)}
                   {selectedSubmission.status.charAt(0).toUpperCase() + selectedSubmission.status.slice(1)}
                 </span>
               </div>
 
               {/* Customer Info */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Full Name</label>
-                  <p className="text-gray-900 font-medium">{selectedSubmission.fullName}</p>
+                  <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">Full Name</label>
+                  <p className="text-sm sm:text-base text-gray-900 font-medium">{selectedSubmission.fullName}</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Email</label>
-                  <p className="text-gray-900 font-medium">{selectedSubmission.email}</p>
+                  <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">Email</label>
+                  <p className="text-sm sm:text-base text-gray-900 font-medium break-all">{selectedSubmission.email}</p>
                 </div>
                 {selectedSubmission.orderNumber && (
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Order Number</label>
-                    <p className="text-gray-900 font-medium">{selectedSubmission.orderNumber}</p>
+                    <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">Order Number</label>
+                    <p className="text-sm sm:text-base text-gray-900 font-medium">{selectedSubmission.orderNumber}</p>
                   </div>
                 )}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Submitted Date</label>
-                  <p className="text-gray-900 font-medium">{selectedSubmission.submittedDate}</p>
+                  <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">Submitted Date</label>
+                  <p className="text-sm sm:text-base text-gray-900 font-medium">{selectedSubmission.submittedDate}</p>
                 </div>
               </div>
 
               {/* Subject */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Subject</label>
-                <p className="text-gray-900 font-bold text-lg">{selectedSubmission.subject}</p>
+                <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">Subject</label>
+                <p className="text-base sm:text-lg text-gray-900 font-bold">{selectedSubmission.subject}</p>
               </div>
 
               {/* Message */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Message</label>
-                <div className="bg-gray-50 rounded-xl p-4 border-2 border-gray-200">
-                  <p className="text-gray-900 whitespace-pre-line leading-relaxed">{selectedSubmission.message}</p>
+                <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">Message</label>
+                <div className="bg-gray-50 rounded-lg sm:rounded-xl p-3 sm:p-4 border-2 border-gray-200">
+                  <p className="text-sm sm:text-base text-gray-900 whitespace-pre-line leading-relaxed">{selectedSubmission.message}</p>
                 </div>
               </div>
 
               {/* Actions */}
-              <div className="flex gap-3 pt-4 border-t-2 border-gray-200">
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-3 sm:pt-4 border-t-2 border-gray-200">
                 <button
                   onClick={() => window.open(`mailto:${selectedSubmission.email}?subject=Re: ${selectedSubmission.subject}`)}
-                  className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-all duration-200 flex items-center justify-center gap-2"
+                  className="flex-1 px-4 sm:px-6 py-2.5 sm:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg sm:rounded-xl text-sm sm:text-base font-semibold transition-all duration-200 flex items-center justify-center gap-2"
                 >
-                  <Mail className="w-5 h-5" />
+                  <Mail className="w-4 h-4 sm:w-5 sm:h-5" />
                   <span>Reply via Email</span>
                 </button>
                 {selectedSubmission.status !== 'responded' && (
                   <button
                     onClick={() => handleMarkAsResponded(selectedSubmission.id)}
-                    className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold transition-all duration-200 flex items-center justify-center gap-2"
+                    className="flex-1 px-4 sm:px-6 py-2.5 sm:py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg sm:rounded-xl text-sm sm:text-base font-semibold transition-all duration-200 flex items-center justify-center gap-2"
                   >
-                    <CheckCircle className="w-5 h-5" />
+                    <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
                     <span>Mark as Responded</span>
                   </button>
                 )}

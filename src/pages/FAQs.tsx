@@ -30,7 +30,7 @@ export default function FAQs() {
       try {
         setLoading(true);
         setError(null);
-        const response = await faqAPI.getAllFAQs();
+        const response = await faqAPI.getAll();
         
         if (response.success && response.data) {
           // Group FAQs by category

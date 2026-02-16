@@ -10,7 +10,8 @@ import {
   Users,
   MessageSquare,
   BarChart3,
-  Star
+  Star,
+  Mail
 } from 'lucide-react';
 
 interface MenuItem {
@@ -72,6 +73,11 @@ const AdminSidebar: React.FC = () => {
       name: 'Contact Forms',
       path: '/panel/contact-submissions',
       icon: <MessageSquare className="w-5 h-5" />
+    },
+    {
+      name: 'Newsletter',
+      path: '/panel/newsletter-subscriptions',
+      icon: <Mail className="w-5 h-5" />
     }
   ];
 

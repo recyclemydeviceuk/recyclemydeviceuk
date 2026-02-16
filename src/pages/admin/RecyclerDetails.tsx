@@ -2,19 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Building2, Mail, Phone, Globe, CheckCircle, XCircle, Calendar, User } from 'lucide-react';
 import AdminSidebar from '../../components/AdminSidebar';
+import { adminAPI } from '../../services/api';
 
 interface RecyclerApplication {
-  id: string;
+  _id: string;
   companyName: string;
-  contactName: string;
+  name: string;
   email: string;
   phone: string;
   website: string;
   businessDescription: string;
   status: 'pending' | 'approved' | 'rejected';
-  submittedDate: string;
-  reviewedDate?: string;
-  reviewedBy?: string;
+  createdAt: string;
+  processedAt?: string;
+  processedBy?: { email: string };
   rejectionReason?: string;
 }
 
@@ -29,21 +30,11 @@ const RecyclerDetails: React.FC = () => {
 
   useEffect(() => {
     const loadApplicationData = async () => {
+      if (!id) return;
+      
       try {
-        // Mock data - replace with actual API call
-        const mockApplication: RecyclerApplication = {
-          id: id || '1',
-          companyName: 'EcoTech Recycling Ltd',
-          contactName: 'Robert Johnson',
-          email: 'robert@ecotech-recycling.com',
-          phone: '+44 20 7123 4567',
-          website: 'www.ecotech-recycling.com',
-          businessDescription: 'We are a leading electronics recycling company with over 15 years of experience in the industry. We specialize in environmentally-friendly disposal and refurbishment of mobile devices, ensuring compliance with all UK environmental regulations.\n\nOur state-of-the-art facility in London processes over 10,000 devices monthly, and we have established partnerships with major retailers and corporations across the UK. We employ a team of 50+ certified technicians and maintain strict data security protocols.\n\nOur services include:\n- Mobile phone and tablet recycling\n- Data wiping and destruction\n- Component harvesting and reuse\n- Environmentally compliant disposal\n- Corporate IT asset management\n\nWe hold ISO 14001 certification and are registered with the Environment Agency. Our commitment to sustainability extends beyond recycling - we also invest in community education programs and support local environmental initiatives.',
-          status: 'pending',
-          submittedDate: '2026-02-10',
-        };
-
-        setApplicationData(mockApplication);
+        const response: any = await adminAPI.recyclerApplications.getById(id);
+        setApplicationData(response.data);
       } catch (error) {
         console.error('Error loading application:', error);
       } finally {
@@ -54,40 +45,35 @@ const RecyclerDetails: React.FC = () => {
     loadApplicationData();
   }, [id]);
 
-  const handleApprove = () => {
-    // TODO: Replace with actual API call
-    console.log('Approving application:', id);
-    if (applicationData) {
-      setApplicationData({
-        ...applicationData,
-        status: 'approved',
-        reviewedDate: new Date().toISOString().split('T')[0],
-        reviewedBy: 'Admin',
-      });
+  const handleApprove = async () => {
+    if (!id) return;
+    
+    try {
+      await adminAPI.recyclerApplications.approve(id);
+      setShowApproveModal(false);
+      setTimeout(() => {
+        navigate('/panel/recyclers');
+      }, 1000);
+    } catch (error: any) {
+      console.error('Error approving application:', error);
+      alert(error?.message || 'Failed to approve application');
     }
-    setShowApproveModal(false);
-    setTimeout(() => {
-      navigate('/panel/recyclers');
-    }, 1500);
   };
 
-  const handleReject = () => {
-    // TODO: Replace with actual API call
-    console.log('Rejecting application:', id, 'Reason:', rejectionReason);
-    if (applicationData) {
-      setApplicationData({
-        ...applicationData,
-        status: 'rejected',
-        reviewedDate: new Date().toISOString().split('T')[0],
-        reviewedBy: 'Admin',
-        rejectionReason: rejectionReason,
-      });
+  const handleReject = async () => {
+    if (!id || !rejectionReason.trim()) return;
+    
+    try {
+      await adminAPI.recyclerApplications.reject(id, rejectionReason);
+      setShowRejectModal(false);
+      setRejectionReason('');
+      setTimeout(() => {
+        navigate('/panel/recyclers');
+      }, 1000);
+    } catch (error: any) {
+      console.error('Error rejecting application:', error);
+      alert(error?.message || 'Failed to reject application');
     }
-    setShowRejectModal(false);
-    setRejectionReason('');
-    setTimeout(() => {
-      navigate('/panel/recyclers');
-    }, 1500);
   };
 
   const getStatusColor = (status: string) => {
@@ -186,7 +172,7 @@ const RecyclerDetails: React.FC = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Contact Person</label>
                   <div className="flex items-center space-x-2">
                     <User className="w-5 h-5 text-gray-400" />
-                    <p className="text-gray-900 font-semibold">{applicationData.contactName}</p>
+                    <p className="text-gray-900 font-semibold">{applicationData.name}</p>
                   </div>
                 </div>
 
@@ -263,11 +249,11 @@ const RecyclerDetails: React.FC = () => {
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-gray-700">Application Submitted</p>
-                    <p className="text-lg font-bold text-gray-900">{applicationData.submittedDate}</p>
+                    <p className="text-lg font-bold text-gray-900">{new Date(applicationData.createdAt).toLocaleDateString()}</p>
                   </div>
                 </div>
 
-                {applicationData.reviewedDate && (
+                {applicationData.processedAt && (
                   <div className="flex items-center space-x-4">
                     <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
                       applicationData.status === 'approved' ? 'bg-green-100' : 'bg-red-100'
@@ -282,8 +268,10 @@ const RecyclerDetails: React.FC = () => {
                       <p className="text-sm font-semibold text-gray-700">
                         Application {applicationData.status === 'approved' ? 'Approved' : 'Rejected'}
                       </p>
-                      <p className="text-lg font-bold text-gray-900">{applicationData.reviewedDate}</p>
-                      <p className="text-sm text-gray-500">by {applicationData.reviewedBy}</p>
+                      <p className="text-lg font-bold text-gray-900">{new Date(applicationData.processedAt).toLocaleDateString()}</p>
+                      {applicationData.processedBy && (
+                        <p className="text-sm text-gray-500">by {applicationData.processedBy.email}</p>
+                      )}
                     </div>
                   </div>
                 )}

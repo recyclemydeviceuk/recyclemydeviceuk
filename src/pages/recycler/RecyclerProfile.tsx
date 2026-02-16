@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { recyclerAuthService } from '../../services/recyclerAuth';
+import { useRecycler } from '../../contexts/RecyclerContext';
 import { 
   User, 
   LogOut,
@@ -16,42 +18,98 @@ import {
   ToggleLeft,
   ToggleRight,
   Shield,
-  Award
+  Award,
+  AlertCircle
 } from 'lucide-react';
 import RecyclerSidebar from '../../components/RecyclerSidebar';
 
 const RecyclerProfile: React.FC = () => {
   const navigate = useNavigate();
+  const { profile, partnerId, isLoading: contextLoading, error: contextError, updateProfile } = useRecycler();
+  
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
   
-  // Partner ID (static)
-  const partnerId = 'RP-7881';
-  
-  // Form state
-  const [companyName, setCompanyName] = useState('EcoTech Recyclers Ltd');
-  const [companyEmail, setCompanyEmail] = useState('contact@ecotech-recyclers.com');
-  const [companyPhone, setCompanyPhone] = useState('+44 20 7946 0958');
-  const [companyAddress, setCompanyAddress] = useState('45 Green Street, London, E1 7LB, United Kingdom');
-  const [companyDescription, setCompanyDescription] = useState('Leading sustainable electronics recycling partner committed to environmental responsibility and data security. We specialize in responsible device refurbishment and recycling.');
+  // Form state - initialize from context when profile loads
+  const [recyclerName, setRecyclerName] = useState('');
+  const [companyName, setCompanyName] = useState('');
+  const [companyEmail, setCompanyEmail] = useState('');
+  const [companyPhone, setCompanyPhone] = useState('');
+  const [companyAddress, setCompanyAddress] = useState('');
+  const [city, setCity] = useState('');
+  const [postcode, setPostcode] = useState('');
+  const [website, setWebsite] = useState('');
+  const [companyDescription, setCompanyDescription] = useState('');
   const [companyLogo, setCompanyLogo] = useState('');
   const [isActive, setIsActive] = useState(true);
-  
   const [usps, setUsps] = useState([
     'Certified Data Destruction & Security',
     'Same-Day Device Collection Service',
     'Competitive Pricing & Fast Payments'
   ]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('recyclerAuth');
-    localStorage.removeItem('recyclerEmail');
-    navigate('/recycler/login');
+  // Sync form state with context profile when it loads/changes
+  useEffect(() => {
+    if (profile) {
+      setRecyclerName(profile.name || '');
+      setCompanyName(profile.companyName || '');
+      setCompanyEmail(profile.email || '');
+      setCompanyPhone(profile.phone || '');
+      setCompanyAddress(profile.address || '');
+      setCity(profile.city || '');
+      setPostcode(profile.postcode || '');
+      setWebsite(profile.website || '');
+      setCompanyDescription(profile.businessDescription || '');
+      setCompanyLogo(profile.logo || '');
+      setIsActive(profile.isActive !== undefined ? profile.isActive : true);
+      if (profile.usps && profile.usps.length > 0) {
+        setUsps(profile.usps);
+      }
+    }
+  }, [profile]);
+
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
+    
+    setIsLoggingOut(true);
+    try {
+      await recyclerAuthService.logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      navigate('/recycler/login');
+    }
   };
 
-  const handleSaveProfile = () => {
-    // Here you would normally save to backend
-    setShowSuccessAlert(true);
-    setTimeout(() => setShowSuccessAlert(false), 3000);
+  const handleSaveProfile = async () => {
+    setIsSaving(true);
+    setLocalError(null);
+    try {
+      const profileData = {
+        name: recyclerName,
+        companyName,
+        phone: companyPhone,
+        address: companyAddress,
+        city,
+        postcode,
+        website,
+        businessDescription: companyDescription,
+        logo: companyLogo,
+        isActive,
+        usps,
+      };
+      
+      await updateProfile(profileData);
+      setShowSuccessAlert(true);
+      setTimeout(() => setShowSuccessAlert(false), 3000);
+    } catch (error: any) {
+      console.error('Error saving profile:', error);
+      setLocalError(error.message || 'Failed to save profile');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleUSPChange = (index: number, value: string) => {
@@ -119,6 +177,27 @@ const RecyclerProfile: React.FC = () => {
                 </div>
               </div>
             )}
+
+            {/* Error Alert */}
+            {(contextError || localError) && (
+              <div className="fixed top-24 right-8 z-50 animate-in slide-in-from-right-5 duration-300">
+                <div className="bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-4 rounded-2xl shadow-2xl border-2 border-white flex items-center gap-3">
+                  <AlertCircle className="w-5 h-5" />
+                  <p className="font-bold">{contextError || localError}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Loading State */}
+            {contextLoading ? (
+              <div className="flex items-center justify-center py-20">
+                <div className="text-center">
+                  <div className="w-16 h-16 border-4 border-[#1b981b] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                  <p className="text-gray-600 font-semibold">Loading profile...</p>
+                </div>
+              </div>
+            ) : (
+              <>
 
             {/* Partner ID Card */}
             <div className="relative overflow-hidden bg-gradient-to-br from-[#1b981b] to-[#157a15] rounded-3xl shadow-2xl p-8 mb-6">
@@ -334,6 +413,7 @@ const RecyclerProfile: React.FC = () => {
                       type="text"
                       value={usp}
                       onChange={(e) => handleUSPChange(index, e.target.value)}
+                      maxLength={20}
                       className="w-full pl-16 pr-4 py-4 bg-white border-2 border-purple-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all text-sm font-semibold shadow-sm hover:shadow-md"
                       placeholder={`USP ${index + 1}`}
                     />
@@ -346,12 +426,24 @@ const RecyclerProfile: React.FC = () => {
             <div className="flex justify-center">
               <button
                 onClick={handleSaveProfile}
-                className="group flex items-center gap-3 px-12 py-5 bg-gradient-to-r from-[#1b981b] to-[#157a15] hover:from-[#157a15] hover:to-[#0d8a0d] text-white rounded-2xl font-bold text-lg transition-all shadow-2xl hover:shadow-3xl transform hover:-translate-y-1 hover:scale-105"
+                disabled={isSaving}
+                className="group flex items-center gap-3 px-12 py-5 bg-gradient-to-r from-[#1b981b] to-[#157a15] hover:from-[#157a15] hover:to-[#0d8a0d] text-white rounded-2xl font-bold text-lg transition-all shadow-2xl hover:shadow-3xl transform hover:-translate-y-1 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Save className="w-6 h-6 group-hover:rotate-12 transition-transform" />
-                Save Profile Changes
+                {isSaving ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-6 h-6 group-hover:rotate-12 transition-transform" />
+                    Save Profile Changes
+                  </>
+                )}
               </button>
             </div>
+            </>
+            )}
           </div>
         </main>
       </div>

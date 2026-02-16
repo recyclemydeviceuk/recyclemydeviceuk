@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, User, Mail, Phone, MapPin, Calendar, Package, TrendingUp } from 'lucide-react';
 import AdminSidebar from '../../components/AdminSidebar';
+import { adminAPI } from '../../services/api';
 
 interface CustomerData {
   id: string;
@@ -23,10 +24,10 @@ interface Order {
   id: string;
   orderNumber: string;
   device: string;
-  condition: string;
-  price: number;
-  date: string;
+  amount: number;
   status: string;
+  recycler: string;
+  createdAt: string;
 }
 
 const CustomerDetails: React.FC = () => {
@@ -36,82 +37,46 @@ const CustomerDetails: React.FC = () => {
   const [customerData, setCustomerData] = useState<CustomerData | null>(null);
 
   useEffect(() => {
-    // TODO: Replace with actual API call
-    const loadCustomerData = async () => {
-      try {
-        // Mock data
-        const mockCustomer: CustomerData = {
-          id: id || '1',
-          name: 'John Smith',
-          email: 'john.smith@email.com',
-          phone: '+44 7700 900123',
-          address: '123 High Street',
-          city: 'London',
-          postcode: 'SW1A 1AA',
-          totalOrders: 5,
-          totalEarned: 3250,
-          lastOrderDate: '2026-02-10',
-          joinedDate: '2025-12-15',
-          orderFrequency: 'Weekly',
-          orders: [
-            {
-              id: '1',
-              orderNumber: 'ORD-2026-001',
-              device: 'iPhone 15 Pro Max',
-              condition: 'Excellent',
-              price: 750,
-              date: '2026-02-10',
-              status: 'completed'
-            },
-            {
-              id: '2',
-              orderNumber: 'ORD-2026-015',
-              device: 'iPhone 14 Pro',
-              condition: 'Good',
-              price: 650,
-              date: '2026-02-03',
-              status: 'completed'
-            },
-            {
-              id: '3',
-              orderNumber: 'ORD-2026-028',
-              device: 'Samsung Galaxy S24',
-              condition: 'Excellent',
-              price: 620,
-              date: '2026-01-27',
-              status: 'completed'
-            },
-            {
-              id: '4',
-              orderNumber: 'ORD-2026-042',
-              device: 'iPhone 13',
-              condition: 'Fair',
-              price: 420,
-              date: '2026-01-20',
-              status: 'completed'
-            },
-            {
-              id: '5',
-              orderNumber: 'ORD-2026-055',
-              device: 'Google Pixel 8 Pro',
-              condition: 'Good',
-              price: 810,
-              date: '2026-01-13',
-              status: 'completed'
-            },
-          ]
-        };
-
-        setCustomerData(mockCustomer);
-      } catch (error) {
-        console.error('Error loading customer:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadCustomerData();
   }, [id]);
+
+  const loadCustomerData = async () => {
+    if (!id) return;
+    
+    try {
+      setLoading(true);
+      const response: any = await adminAPI.customers.getById(id);
+      const data = response.data;
+      
+      // Determine order frequency
+      let orderFrequency = 'First Time';
+      const totalOrders = data.stats.totalOrders;
+      if (totalOrders > 8) orderFrequency = 'Weekly';
+      else if (totalOrders > 5) orderFrequency = 'Bi-weekly';
+      else if (totalOrders > 2) orderFrequency = 'Monthly';
+      else if (totalOrders > 1) orderFrequency = 'Occasionally';
+      
+      setCustomerData({
+        id: data.customer.id,
+        name: data.customer.name,
+        email: data.customer.email,
+        phone: data.customer.phone,
+        address: data.customer.address,
+        city: data.customer.city,
+        postcode: data.customer.postcode,
+        totalOrders: data.stats.totalOrders,
+        totalEarned: data.stats.totalEarned,
+        lastOrderDate: data.orders[0]?.createdAt || '',
+        joinedDate: data.customer.joinedDate,
+        orderFrequency,
+        orders: data.orders || [],
+      });
+    } catch (error) {
+      console.error('Error loading customer:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     const colors = {
@@ -215,7 +180,7 @@ const CustomerDetails: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600 mb-1">Total Earned</p>
-                    <p className="text-3xl font-bold text-gray-800">£{customerData.totalEarned.toLocaleString()}</p>
+                    <p className="text-3xl font-bold text-gray-800">£{Math.round(customerData.totalEarned).toLocaleString()}</p>
                   </div>
                   <div className="w-12 h-12 bg-[#1b981b] rounded-xl flex items-center justify-center">
                     <div className="text-white font-bold text-lg">£</div>
@@ -286,7 +251,13 @@ const CustomerDetails: React.FC = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Member Since</label>
                   <div className="flex items-center space-x-2">
                     <Calendar className="w-5 h-5 text-gray-400" />
-                    <p className="text-gray-900">{customerData.joinedDate}</p>
+                    <p className="text-gray-900">
+                      {customerData.joinedDate ? new Date(customerData.joinedDate).toLocaleDateString('en-GB', { 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      }) : 'N/A'}
+                    </p>
                   </div>
                 </div>
 
@@ -333,17 +304,19 @@ const CustomerDetails: React.FC = () => {
                             <span className="font-semibold text-gray-900">{order.device}</span>
                           </div>
                           <div>
-                            <span className="text-gray-500">Condition: </span>
-                            <span className="font-semibold text-gray-900">{order.condition}</span>
+                            <span className="text-gray-500">Recycler: </span>
+                            <span className="font-semibold text-gray-900">{order.recycler}</span>
                           </div>
                           <div>
                             <span className="text-gray-500">Date: </span>
-                            <span className="font-semibold text-gray-900">{order.date}</span>
+                            <span className="font-semibold text-gray-900">
+                              {new Date(order.createdAt).toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                            </span>
                           </div>
                         </div>
                       </div>
                       <div className="text-right ml-4">
-                        <p className="text-2xl font-bold text-[#1b981b]">£{order.price}</p>
+                        <p className="text-2xl font-bold text-[#1b981b]">£{order.amount?.toLocaleString() || 0}</p>
                         <button
                           onClick={() => navigate(`/panel/orders/${order.id}`)}
                           className="text-sm text-blue-600 hover:text-blue-700 font-semibold mt-1"

@@ -43,7 +43,7 @@ export default function Footer() {
     <footer className="bg-secondary text-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 md:py-12">
         {/* About Section - Always Visible */}
-        <div className="mb-6 sm:mb-0">
+        <div className="mb-6 sm:mb-8 md:mb-10">
           <img 
             src="https://res.cloudinary.com/dn2sab6qc/image/upload/v1770564725/logo-B5YScriS_1_gmfftq.jpg" 
             alt="Recycle My Device" 

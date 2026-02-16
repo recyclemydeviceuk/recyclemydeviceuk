@@ -1,7 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Smartphone, Info, Image as ImageIcon, Upload, X } from 'lucide-react';
+import { ArrowLeft, Smartphone, Info, Image as ImageIcon, Upload, X, Loader2 } from 'lucide-react';
 import AdminSidebar from '../../components/AdminSidebar';
+import SelectDropdown from '../../components/SelectDropdown';
+import MultiSelectDropdown from '../../components/MultiSelectDropdown';
+import { adminAPI } from '../../services/api';
+
+interface Brand {
+  _id: string;
+  name: string;
+  logo?: string;
+}
 
 interface FormData {
   name: string;
@@ -26,36 +35,76 @@ const AddDevice: React.FC = () => {
   });
 
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
+  const [brands, setBrands] = useState<Brand[]>([]);
+  const [categories, setCategories] = useState<Array<{value: string; label: string}>>([]);
+  const [storageOptions, setStorageOptions] = useState<Array<{value: string; label: string}>>([]);
+  const [conditions, setConditions] = useState<Array<{value: string; label: string}>>([]);
+  const [loadingUtilities, setLoadingUtilities] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
-  // Available options
-  const brands = [
-    'Apple',
-    'Samsung',
-    'Google',
-    'OnePlus',
-    'Xiaomi',
-    'Oppo',
-    'Vivo',
-    'Realme',
-    'Nothing',
-    'Motorola',
-  ];
+  // Fetch brands, categories, storage options, and conditions from backend
+  useEffect(() => {
+    const fetchUtilities = async () => {
+      try {
+        setLoadingUtilities(true);
+        
+        // Fetch all utilities in parallel
+        const [brandsRes, categoriesRes, storageRes, conditionsRes]: any[] = await Promise.all([
+          adminAPI.utilities.getBrands(),
+          adminAPI.utilities.getCategories(),
+          adminAPI.utilities.getStorageOptions(),
+          adminAPI.utilities.getConditions(),
+        ]);
+        
+        // Set brands
+        setBrands(brandsRes.data || []);
+        
+        // Set categories - transform to {value, label} format
+        const categoriesData = categoriesRes.data || [];
+        console.log('Categories from backend:', categoriesData);
+        setCategories(categoriesData.map((cat: any) => ({
+          value: cat.value || cat.name || cat._id,
+          label: cat.label || cat.name
+        })));
+        
+        // Set storage options - transform to {value, label} format
+        const storageData = storageRes.data || [];
+        console.log('Storage from backend:', storageData);
+        const transformedStorage = storageData
+          .filter((item: any) => item && item.name) // Only items with name
+          .map((item: any) => ({
+            value: item.name,
+            label: item.name
+          }));
+        console.log('Transformed storage:', transformedStorage);
+        setStorageOptions(transformedStorage);
+        
+        // Set conditions - transform to {value, label} format
+        const conditionsData = conditionsRes.data || [];
+        console.log('Conditions from backend:', conditionsData);
+        const transformedConditions = conditionsData
+          .filter((item: any) => item && item.name) // Only items with name
+          .map((item: any) => ({
+            value: item.name,
+            label: item.name
+          }));
+        console.log('Transformed conditions:', transformedConditions);
+        setConditions(transformedConditions);
+      } catch (err: any) {
+        console.error('Error fetching utilities:', err);
+        // Set fallback data
+        setBrands([]);
+        setCategories([]);
+        setStorageOptions([]);
+        setConditions([]);
+      } finally {
+        setLoadingUtilities(false);
+      }
+    };
+    fetchUtilities();
+  }, []);
 
-  const categories = [
-    { value: 'smartphone', label: 'Smartphone' },
-    { value: 'tablet', label: 'Tablet' },
-    { value: 'laptop', label: 'Laptop' },
-    { value: 'smartwatch', label: 'Smartwatch' },
-    { value: 'gaming', label: 'Gaming Console' },
-    { value: 'other', label: 'Other' },
-  ];
-
-  const storageOptionsPresets = {
-    smartphone: ['64GB', '128GB', '256GB', '512GB', '1TB'],
-    tablet: ['64GB', '128GB', '256GB', '512GB', '1TB', '2TB'],
-    laptop: ['256GB', '512GB', '1TB', '2TB'],
-    default: ['64GB', '128GB', '256GB', '512GB', '1TB'],
-  };
+  // Categories and storage presets are now loaded from backend in useEffect
 
   const handleInputChange = (field: keyof FormData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -117,12 +166,49 @@ const AddDevice: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (validate()) {
-      console.log('Form submitted:', formData);
-      // TODO: API call to save device
+    if (!validate()) return;
+
+    try {
+      setSubmitting(true);
+      setErrors({});
+
+      // Upload image first if exists
+      let imageUrl = '';
+      if (formData.image) {
+        try {
+          const uploadResponse: any = await adminAPI.utilities.uploadImage(formData.image);
+          imageUrl = uploadResponse.data?.url || uploadResponse.url || '';
+        } catch (err) {
+          console.error('Image upload failed:', err);
+          // Continue without image
+        }
+      }
+
+      // Create device payload
+      const deviceData = {
+        name: formData.name.trim(),
+        brand: formData.brand,
+        category: formData.category,
+        description: formData.description.trim(),
+        storageOptions: formData.storageOptions,
+        conditionOptions: formData.conditionOptions,
+        image: imageUrl,
+        status: 'active',
+      };
+
+      // Create device
+      await adminAPI.devices.create(deviceData);
+      
+      // Success - navigate back
       navigate('/panel/devices');
+    } catch (err: any) {
+      console.error('Error creating device:', err);
+      const errorMessage = err.response?.data?.message || err.message || 'Failed to create device';
+      setErrors({ name: errorMessage });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -198,20 +284,19 @@ const AddDevice: React.FC = () => {
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
                         Brand *
                       </label>
-                      <select
+                      <SelectDropdown
+                        options={brands.map(b => ({
+                          value: b._id,
+                          label: b.name,
+                          logo: b.logo
+                        }))}
                         value={formData.brand}
-                        onChange={(e) => handleInputChange('brand', e.target.value)}
-                        className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1b981b] transition-all bg-white cursor-pointer ${
-                          errors.brand ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                        }`}
-                      >
-                        <option value="">Select a brand</option>
-                        {brands.map((brand) => (
-                          <option key={brand} value={brand}>
-                            {brand}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(value) => handleInputChange('brand', value)}
+                        placeholder={loadingUtilities ? 'Loading brands...' : 'Select a brand'}
+                        error={!!errors.brand}
+                        disabled={loadingUtilities}
+                        showLogos={true}
+                      />
                       {errors.brand && (
                         <p className="text-sm text-red-600 mt-1 flex items-center">
                           <Info className="w-4 h-4 mr-1" />
@@ -225,28 +310,14 @@ const AddDevice: React.FC = () => {
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
                         Category *
                       </label>
-                      <select
+                      <SelectDropdown
+                        options={categories}
                         value={formData.category}
-                        onChange={(e) => {
-                          const newCategory = e.target.value;
-                          handleInputChange('category', newCategory);
-                          // Auto-populate storage options based on category
-                          if (newCategory && formData.storageOptions.length === 0) {
-                            const preset = storageOptionsPresets[newCategory as keyof typeof storageOptionsPresets] || storageOptionsPresets.default;
-                            handleInputChange('storageOptions', preset);
-                          }
-                        }}
-                        className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1b981b] transition-all bg-white cursor-pointer ${
-                          errors.category ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                        }`}
-                      >
-                        <option value="">Select a category</option>
-                        {categories.map((cat) => (
-                          <option key={cat.value} value={cat.value}>
-                            {cat.label}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(value) => handleInputChange('category', value)}
+                        placeholder="Select a category"
+                        error={!!errors.category}
+                        disabled={loadingUtilities}
+                      />
                       {errors.category && (
                         <p className="text-sm text-red-600 mt-1 flex items-center">
                           <Info className="w-4 h-4 mr-1" />
@@ -261,65 +332,43 @@ const AddDevice: React.FC = () => {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
                       Storage Options * <span className="text-xs text-gray-500">(Recyclers will set prices per storage)</span>
                     </label>
-                    <div className="flex flex-wrap gap-2 mb-2">
-                      {formData.storageOptions.map((storage, index) => (
-                        <span
-                          key={index}
-                          className="inline-flex items-center px-3 py-1.5 bg-[#1b981b] text-white rounded-lg text-sm font-medium"
-                        >
-                          {storage}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newOptions = formData.storageOptions.filter((_, i) => i !== index);
-                              handleInputChange('storageOptions', newOptions);
-                            }}
-                            className="ml-2 hover:text-red-200 transition-colors"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        placeholder="e.g., 128GB"
-                        onKeyPress={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            const input = e.currentTarget;
-                            const value = input.value.trim();
-                            if (value && !formData.storageOptions.includes(value)) {
-                              handleInputChange('storageOptions', [...formData.storageOptions, value]);
-                              input.value = '';
-                            }
-                          }
-                        }}
-                        className="flex-1 px-4 py-2 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1b981b] transition-all"
-                      />
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          const input = e.currentTarget.previousElementSibling as HTMLInputElement;
-                          const value = input.value.trim();
-                          if (value && !formData.storageOptions.includes(value)) {
-                            handleInputChange('storageOptions', [...formData.storageOptions, value]);
-                            input.value = '';
-                          }
-                        }}
-                        className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-medium transition-all"
-                      >
-                        Add
-                      </button>
-                    </div>
+                    <MultiSelectDropdown
+                      options={storageOptions}
+                      value={formData.storageOptions}
+                      onChange={(values) => handleInputChange('storageOptions', values)}
+                      placeholder="Select storage options"
+                      error={!!errors.storageOptions}
+                      disabled={loadingUtilities}
+                    />
                     {errors.storageOptions && (
                       <p className="text-sm text-red-600 mt-1 flex items-center">
                         <Info className="w-4 h-4 mr-1" />
                         {errors.storageOptions}
                       </p>
                     )}
-                    <p className="text-xs text-gray-500 mt-1">Press Enter or click Add to add storage options</p>
+                    <p className="text-xs text-gray-500 mt-1">Select all storage options this device supports</p>
+                  </div>
+
+                  {/* Condition Options */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Condition Options * <span className="text-xs text-gray-500">(Recyclers will set prices per condition)</span>
+                    </label>
+                    <MultiSelectDropdown
+                      options={conditions}
+                      value={formData.conditionOptions}
+                      onChange={(values) => handleInputChange('conditionOptions', values)}
+                      placeholder="Select condition options"
+                      error={!!errors.conditionOptions}
+                      disabled={loadingUtilities}
+                    />
+                    {errors.conditionOptions && (
+                      <p className="text-sm text-red-600 mt-1 flex items-center">
+                        <Info className="w-4 h-4 mr-1" />
+                        {errors.conditionOptions}
+                      </p>
+                    )}
+                    <p className="text-xs text-gray-500 mt-1">Select all condition grades for device pricing</p>
                   </div>
 
                   {/* Description */}
@@ -440,9 +489,17 @@ const AddDevice: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-8 py-3 bg-gradient-to-r from-[#1b981b] to-[#157a15] text-white rounded-xl font-semibold hover:shadow-lg hover:scale-105 transition-all duration-200"
+                  disabled={submitting}
+                  className="px-8 py-3 bg-gradient-to-r from-[#1b981b] to-[#157a15] text-white rounded-xl font-semibold hover:shadow-lg hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center space-x-2"
                 >
-                  Add Device
+                  {submitting ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>Creating Device...</span>
+                    </>
+                  ) : (
+                    <span>Add Device</span>
+                  )}
                 </button>
               </div>
             </form>

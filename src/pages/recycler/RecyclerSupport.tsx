@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { recyclerAuthService } from '../../services/recyclerAuth';
 import { 
   HelpCircle, 
   LogOut,
@@ -14,10 +15,18 @@ import RecyclerSidebar from '../../components/RecyclerSidebar';
 const RecyclerSupport: React.FC = () => {
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    localStorage.removeItem('recyclerAuth');
-    localStorage.removeItem('recyclerEmail');
-    navigate('/recycler/login');
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    try {
+      await recyclerAuthService.logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      navigate('/recycler/login');
+    }
   };
 
   return (

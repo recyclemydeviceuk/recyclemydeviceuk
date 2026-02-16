@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, Search, Filter, Eye, LogOut, Download, Mail, Phone, MapPin } from 'lucide-react';
 import AdminSidebar from '../../components/AdminSidebar';
+import Pagination from '../../components/Pagination';
+import { adminAPI } from '../../services/api';
 
 interface Customer {
   id: string;
@@ -16,145 +18,105 @@ interface Customer {
   lastOrderDate: string;
   joinedDate: string;
   orderFrequency: string;
+  devices: string[];
 }
 
 const CustomerManagement: React.FC = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('totalOrders');
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({ totalCustomers: 0, totalPayout: 0, averageOrderValue: 0, repeatCustomers: 0 });
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    pages: 0,
+  });
+
+  useEffect(() => {
+    loadCustomers();
+  }, [searchQuery, sortBy, pagination.page]);
+
+  const loadCustomers = async () => {
+    try {
+      setLoading(true);
+      const params: any = {
+        page: pagination.page,
+        limit: pagination.limit,
+      };
+      if (searchQuery) params.search = searchQuery;
+      if (sortBy) params.sortBy = sortBy;
+      
+      const response: any = await adminAPI.customers.getAll(params);
+      setCustomers(response.data.customers || []);
+      setStats(response.data.stats || { totalCustomers: 0, totalPayout: 0, averageOrderValue: 0, repeatCustomers: 0 });
+      
+      // Update pagination info
+      if (response.pagination) {
+        setPagination(prev => ({
+          ...prev,
+          total: response.pagination.total,
+          pages: response.pagination.pages,
+        }));
+      }
+    } catch (error) {
+      console.error('Error loading customers:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('adminAuth');
     localStorage.removeItem('adminEmail');
+    sessionStorage.removeItem('adminToken');
+    sessionStorage.removeItem('sessionToken');
     navigate('/panel/login');
   };
 
-  // Mock customers data based on checkout information
-  const customers: Customer[] = [
-    {
-      id: '1',
-      name: 'John Smith',
-      email: 'john.smith@email.com',
-      phone: '+44 7700 900123',
-      address: '123 High Street',
-      city: 'London',
-      postcode: 'SW1A 1AA',
-      totalOrders: 5,
-      totalEarned: 3250,
-      lastOrderDate: '2026-02-10',
-      joinedDate: '2025-12-15',
-      orderFrequency: 'Weekly'
-    },
-    {
-      id: '2',
-      name: 'Sarah Johnson',
-      email: 'sarah.j@email.com',
-      phone: '+44 7700 900124',
-      address: '456 Park Lane',
-      city: 'Manchester',
-      postcode: 'M1 1AA',
-      totalOrders: 3,
-      totalEarned: 1890,
-      lastOrderDate: '2026-02-11',
-      joinedDate: '2026-01-05',
-      orderFrequency: 'Monthly'
-    },
-    {
-      id: '3',
-      name: 'Michael Brown',
-      email: 'michael.b@email.com',
-      phone: '+44 7700 900125',
-      address: '789 Queen Road',
-      city: 'Birmingham',
-      postcode: 'B1 1AA',
-      totalOrders: 8,
-      totalEarned: 4560,
-      lastOrderDate: '2026-02-09',
-      joinedDate: '2025-11-20',
-      orderFrequency: 'Weekly'
-    },
-    {
-      id: '4',
-      name: 'Emma Wilson',
-      email: 'emma.w@email.com',
-      phone: '+44 7700 900126',
-      address: '321 King Street',
-      city: 'Leeds',
-      postcode: 'LS1 1AA',
-      totalOrders: 2,
-      totalEarned: 1360,
-      lastOrderDate: '2026-02-08',
-      joinedDate: '2026-01-20',
-      orderFrequency: 'Occasionally'
-    },
-    {
-      id: '5',
-      name: 'David Taylor',
-      email: 'david.t@email.com',
-      phone: '+44 7700 900127',
-      address: '654 George Street',
-      city: 'Glasgow',
-      postcode: 'G1 1AA',
-      totalOrders: 1,
-      totalEarned: 280,
-      lastOrderDate: '2026-02-07',
-      joinedDate: '2026-02-07',
-      orderFrequency: 'First Time'
-    },
-    {
-      id: '6',
-      name: 'Sophie Anderson',
-      email: 'sophie.a@email.com',
-      phone: '+44 7700 900128',
-      address: '987 Victoria Road',
-      city: 'Edinburgh',
-      postcode: 'EH1 1AA',
-      totalOrders: 4,
-      totalEarned: 2840,
-      lastOrderDate: '2026-02-06',
-      joinedDate: '2025-12-01',
-      orderFrequency: 'Bi-weekly'
-    },
-    {
-      id: '7',
-      name: 'James Miller',
-      email: 'james.m@email.com',
-      phone: '+44 7700 900129',
-      address: '159 Albert Street',
-      city: 'Liverpool',
-      postcode: 'L1 1AA',
-      totalOrders: 6,
-      totalEarned: 3920,
-      lastOrderDate: '2026-02-05',
-      joinedDate: '2025-10-15',
-      orderFrequency: 'Weekly'
-    },
-  ];
+  const handleExportCSV = () => {
+    // Prepare CSV data
+    const headers = ['Name', 'Email', 'Phone', 'City', 'Postcode', 'Total Orders', 'Total Earned', 'Last Order Date', 'Member Since', 'Order Frequency'];
+    const csvData = filteredCustomers.map(customer => [
+      customer.name,
+      customer.email,
+      customer.phone,
+      customer.city,
+      customer.postcode,
+      customer.totalOrders,
+      `£${Math.round(customer.totalEarned)}`,
+      customer.lastOrderDate ? new Date(customer.lastOrderDate).toLocaleDateString('en-GB') : 'N/A',
+      customer.joinedDate ? new Date(customer.joinedDate).toLocaleDateString('en-GB') : 'N/A',
+      customer.orderFrequency,
+    ]);
 
-  const filteredCustomers = customers
-    .filter(customer =>
-      customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      customer.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      customer.phone.includes(searchQuery) ||
-      customer.city.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-    .sort((a, b) => {
-      switch (sortBy) {
-        case 'totalOrders':
-          return b.totalOrders - a.totalOrders;
-        case 'totalEarned':
-          return b.totalEarned - a.totalEarned;
-        case 'name':
-          return a.name.localeCompare(b.name);
-        default:
-          return 0;
-      }
-    });
+    // Create CSV content
+    const csvContent = [
+      headers.join(','),
+      ...csvData.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
 
-  const totalCustomers = customers.length;
-  const totalPayout = customers.reduce((sum, c) => sum + c.totalEarned, 0);
-  const averageOrderValue = totalPayout / customers.reduce((sum, c) => sum + c.totalOrders, 0);
-  const repeatCustomers = customers.filter(c => c.totalOrders > 1).length;
+    // Create blob and download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `customers_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const filteredCustomers = customers;
+
+  // Use backend stats
+  const totalCustomers = stats.totalCustomers || 0;
+  const totalPayout = stats.totalPayout || 0;
+  const averageOrderValue = stats.averageOrderValue || 0;
+  const repeatCustomers = stats.repeatCustomers || 0;
 
   const getFrequencyColor = (frequency: string) => {
     switch (frequency) {
@@ -198,6 +160,14 @@ const CustomerManagement: React.FC = () => {
 
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto p-8">
+          {/* Loading State */}
+          {loading && (
+            <div className="flex justify-center items-center py-20">
+              <div className="w-16 h-16 border-4 border-[#1b981b] border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          )}
+
+          {!loading && (
           <div className="max-w-7xl mx-auto">
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
@@ -230,7 +200,7 @@ const CustomerManagement: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600 mb-1">Total Earnings</p>
-                    <p className="text-3xl font-bold text-gray-800">£{totalPayout.toLocaleString()}</p>
+                    <p className="text-3xl font-bold text-gray-800">£{Math.round(totalPayout).toLocaleString()}</p>
                   </div>
                   <div className="w-12 h-12 bg-[#1b981b] rounded-xl flex items-center justify-center">
                     <div className="text-white font-bold text-lg">£</div>
@@ -242,7 +212,7 @@ const CustomerManagement: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600 mb-1">Avg Order Value</p>
-                    <p className="text-3xl font-bold text-gray-800">£{averageOrderValue.toFixed(0)}</p>
+                    <p className="text-3xl font-bold text-gray-800">£{Math.round(averageOrderValue)}</p>
                   </div>
                   <div className="w-12 h-12 bg-[#1b981b] rounded-xl flex items-center justify-center">
                     <div className="text-white font-bold text-lg">£</div>
@@ -281,7 +251,10 @@ const CustomerManagement: React.FC = () => {
                 </div>
 
                 {/* Export Button */}
-                <button className="flex items-center space-x-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-all duration-200 font-semibold whitespace-nowrap">
+                <button 
+                  onClick={handleExportCSV}
+                  className="flex items-center space-x-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-all duration-200 font-semibold whitespace-nowrap"
+                >
                   <Download className="w-5 h-5" />
                   <span>Export</span>
                 </button>
@@ -329,6 +302,23 @@ const CustomerManagement: React.FC = () => {
                         </div>
                       </div>
 
+                      {/* Devices */}
+                      {customer.devices && customer.devices.length > 0 && (
+                        <div className="flex flex-wrap gap-2 text-xs">
+                          <span className="text-gray-500 font-semibold">Devices:</span>
+                          {customer.devices.slice(0, 3).map((device, idx) => (
+                            <span key={idx} className="px-2 py-1 bg-blue-50 text-blue-700 rounded-md font-medium">
+                              {device}
+                            </span>
+                          ))}
+                          {customer.devices.length > 3 && (
+                            <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded-md font-medium">
+                              +{customer.devices.length - 3} more
+                            </span>
+                          )}
+                        </div>
+                      )}
+
                       {/* Address */}
                       <div className="text-sm text-gray-600">
                         <span className="font-semibold">Address: </span>
@@ -343,15 +333,27 @@ const CustomerManagement: React.FC = () => {
                         </div>
                         <div>
                           <span className="text-gray-500">Total Earned: </span>
-                          <span className="font-bold text-[#1b981b]">£{customer.totalEarned.toLocaleString()}</span>
+                          <span className="font-bold text-[#1b981b]">£{Math.round(customer.totalEarned).toLocaleString()}</span>
                         </div>
                         <div>
                           <span className="text-gray-500">Last Order: </span>
-                          <span className="font-semibold text-gray-900">{customer.lastOrderDate}</span>
+                          <span className="font-semibold text-gray-900">
+                            {customer.lastOrderDate ? new Date(customer.lastOrderDate).toLocaleDateString('en-GB', { 
+                              year: 'numeric', 
+                              month: '2-digit', 
+                              day: '2-digit' 
+                            }) : 'N/A'}
+                          </span>
                         </div>
                         <div>
                           <span className="text-gray-500">Member Since: </span>
-                          <span className="font-semibold text-gray-900">{customer.joinedDate}</span>
+                          <span className="font-semibold text-gray-900">
+                            {customer.joinedDate ? new Date(customer.joinedDate).toLocaleDateString('en-GB', { 
+                              year: 'numeric', 
+                              month: '2-digit', 
+                              day: '2-digit' 
+                            }) : 'N/A'}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -379,7 +381,21 @@ const CustomerManagement: React.FC = () => {
                 <p className="text-gray-600">Try adjusting your search query</p>
               </div>
             )}
+
+            {/* Pagination */}
+            {filteredCustomers.length > 0 && pagination.pages > 1 && (
+              <div className="mt-6">
+                <Pagination
+                  currentPage={pagination.page}
+                  totalPages={pagination.pages}
+                  totalItems={pagination.total}
+                  itemsPerPage={pagination.limit}
+                  onPageChange={(page) => setPagination(prev => ({ ...prev, page }))}
+                />
+              </div>
+            )}
           </div>
+          )}
         </main>
       </div>
     </div>

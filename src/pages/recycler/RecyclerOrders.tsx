@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { recyclerAuthService } from '../../services/recyclerAuth';
+import { recyclerAPI } from '../../services/api';
 import { 
   ShoppingBag, 
   LogOut,
@@ -39,8 +41,8 @@ interface Order {
   customerPhone: string;
   devices: OrderDevice[];
   totalAmount: number;
-  status: 'pending' | 'processing' | 'completed' | 'cancelled';
-  paymentStatus: 'paid' | 'pending' | 'failed';
+  status: string; // Dynamic from backend
+  paymentStatus: string; // Dynamic from backend
   orderDate: string;
   deliveryDate?: string;
   shippingAddress: string;
@@ -55,101 +57,96 @@ const RecyclerOrders: React.FC = () => {
   const [paymentFilter, setPaymentFilter] = useState('all');
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const [orders, setOrders] = useState<Order[]>([
-    {
-      id: '1',
-      orderNumber: 'ORD-2024-001',
-      customerName: 'John Smith',
-      customerEmail: 'john.smith@example.com',
-      customerPhone: '+44 7700 900123',
-      devices: [
-        { name: 'iPhone 15 Pro Max', storage: '256GB', condition: 'Like New', price: 850 },
-        { name: 'iPhone 14 Pro', storage: '128GB', condition: 'Good', price: 650 }
-      ],
-      totalAmount: 1500,
-      status: 'completed',
-      paymentStatus: 'paid',
-      orderDate: '2024-02-10',
-      deliveryDate: '2024-02-12',
-      shippingAddress: '123 High Street, London, SW1A 1AA',
-      orderNotes: 'Please handle with care - device has minor scratches on back',
-      expanded: false
-    },
-    {
-      id: '2',
-      orderNumber: 'ORD-2024-002',
-      customerName: 'Sarah Johnson',
-      customerEmail: 'sarah.j@example.com',
-      customerPhone: '+44 7700 900456',
-      devices: [
-        { name: 'Galaxy S24 Ultra', storage: '512GB', condition: 'Like New', price: 920 }
-      ],
-      totalAmount: 920,
-      status: 'processing',
-      paymentStatus: 'paid',
-      orderDate: '2024-02-11',
-      shippingAddress: '456 Oxford Road, Manchester, M1 2AB',
-      orderNotes: 'Original box and all accessories included',
-      expanded: false
-    },
-    {
-      id: '3',
-      orderNumber: 'ORD-2024-003',
-      customerName: 'Michael Brown',
-      customerEmail: 'mbrown@example.com',
-      customerPhone: '+44 7700 900789',
-      devices: [
-        { name: 'Pixel 8 Pro', storage: '256GB', condition: 'Good', price: 550 }
-      ],
-      totalAmount: 550,
-      status: 'pending',
-      paymentStatus: 'pending',
-      orderDate: '2024-02-12',
-      shippingAddress: '789 King Street, Edinburgh, EH1 3YJ',
-      orderNotes: '',
-      expanded: false
-    },
-    {
-      id: '4',
-      orderNumber: 'ORD-2024-004',
-      customerName: 'Emma Wilson',
-      customerEmail: 'emma.wilson@example.com',
-      customerPhone: '+44 7700 900321',
-      devices: [
-        { name: 'iPhone 15 Pro', storage: '512GB', condition: 'Like New', price: 780 },
-        { name: 'OnePlus 12', storage: '256GB', condition: 'Fair', price: 420 }
-      ],
-      totalAmount: 1200,
-      status: 'completed',
-      paymentStatus: 'paid',
-      orderDate: '2024-02-09',
-      deliveryDate: '2024-02-11',
-      shippingAddress: '321 Queen Street, Birmingham, B1 2ND',
-      expanded: false
-    },
-    {
-      id: '5',
-      orderNumber: 'ORD-2024-005',
-      customerName: 'James Taylor',
-      customerEmail: 'jtaylor@example.com',
-      customerPhone: '+44 7700 900654',
-      devices: [
-        { name: 'Galaxy S23 Ultra', storage: '256GB', condition: 'Good', price: 680 }
-      ],
-      totalAmount: 680,
-      status: 'cancelled',
-      paymentStatus: 'failed',
-      orderDate: '2024-02-08',
-      shippingAddress: '654 Prince Street, Leeds, LS1 4HY',
-      expanded: false
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [orderStatuses, setOrderStatuses] = useState<any[]>([]);
+  const [paymentStatuses, setPaymentStatuses] = useState<any[]>([]);
+
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  useEffect(() => {
+    fetchStatuses();
+    fetchOrders();
+  }, []);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [statusFilter, paymentFilter]);
+
+  const fetchStatuses = async () => {
+    try {
+      const [orderStatusRes, paymentStatusRes] = await Promise.all([
+        recyclerAPI.orders.getOrderStatuses(),
+        recyclerAPI.orders.getPaymentStatuses(),
+      ]);
+
+      if (orderStatusRes?.data) {
+        setOrderStatuses(orderStatusRes.data);
+      }
+
+      if (paymentStatusRes?.data) {
+        setPaymentStatuses(paymentStatusRes.data);
+      }
+    } catch (error: any) {
+      console.error('Error fetching statuses:', error);
     }
-  ]);
+  };
 
-  const handleLogout = () => {
-    localStorage.removeItem('recyclerAuth');
-    localStorage.removeItem('recyclerEmail');
-    navigate('/recycler/login');
+  const fetchOrders = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const params: any = {};
+      if (statusFilter !== 'all') params.status = statusFilter;
+      if (paymentFilter !== 'all') params.paymentStatus = paymentFilter;
+      
+      const response = await recyclerAPI.orders.getAll(params);
+      
+      if (response?.data) {
+        // Transform backend data to match frontend interface
+        const transformedOrders = response.data.map((order: any) => ({
+          id: order._id,
+          orderNumber: order.orderNumber,
+          customerName: order.customerName,
+          customerEmail: order.customerEmail,
+          customerPhone: order.customerPhone,
+          devices: order.deviceDetails || [{
+            name: order.deviceName || 'N/A',
+            storage: order.storage || 'N/A',
+            condition: order.deviceCondition || 'N/A',
+            price: order.amount || 0
+          }],
+          totalAmount: order.amount || 0, // Backend uses 'amount' not 'totalAmount'
+          status: order.status,
+          paymentStatus: order.paymentStatus,
+          orderDate: order.createdAt,
+          deliveryDate: order.deliveryDate,
+          shippingAddress: order.shippingAddress || `${order.address || ''}, ${order.city || ''}, ${order.postcode || ''}`.trim().replace(/^,\s*/, '').replace(/,\s*$/, '') || 'N/A',
+          orderNotes: order.orderNotes || order.deviceNotes || '',
+          expanded: false
+        }));
+        setOrders(transformedOrders);
+      }
+    } catch (error: any) {
+      console.error('Error fetching orders:', error);
+      setError(error.message || 'Failed to load orders');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    try {
+      await recyclerAuthService.logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      navigate('/recycler/login');
+    }
   };
 
   const handleToggleExpand = (orderId: string) => {
@@ -158,25 +155,213 @@ const RecyclerOrders: React.FC = () => {
     ));
   };
 
-  const handleUpdateOrderStatus = (orderId: string, newStatus: 'pending' | 'processing' | 'completed' | 'cancelled') => {
-    setOrders(orders.map(order => 
-      order.id === orderId ? { ...order, status: newStatus } : order
-    ));
-    setSuccessMessage(`Order status updated to ${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}`);
+  const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
+    try {
+      await recyclerAPI.orders.updateStatus(orderId, newStatus);
+      
+      setOrders(orders.map(order => 
+        order.id === orderId ? { ...order, status: newStatus } : order
+      ));
+      const statusName = newStatus ? newStatus.charAt(0).toUpperCase() + newStatus.slice(1) : 'Unknown';
+      setSuccessMessage(`Order status updated to ${statusName}`);
+      setShowSuccessAlert(true);
+      setTimeout(() => setShowSuccessAlert(false), 3000);
+    } catch (error: any) {
+      console.error('Error updating order status:', error);
+      setSuccessMessage(`Failed to update order status: ${error.message}`);
+      setShowSuccessAlert(true);
+      setTimeout(() => setShowSuccessAlert(false), 3000);
+    }
+  };
+
+  const handleUpdatePaymentStatus = async (orderId: string, newPaymentStatus: string) => {
+    try {
+      console.log('Updating payment status:', { orderId, newPaymentStatus });
+      // Update payment status via API
+      await recyclerAPI.orders.updatePaymentStatus(orderId, newPaymentStatus);
+      
+      setOrders(orders.map(order => 
+        order.id === orderId ? { ...order, paymentStatus: newPaymentStatus } : order
+      ));
+      const statusName = newPaymentStatus ? newPaymentStatus.charAt(0).toUpperCase() + newPaymentStatus.slice(1) : 'Unknown';
+      setSuccessMessage(`Payment status updated to ${statusName}`);
+      setShowSuccessAlert(true);
+      setTimeout(() => setShowSuccessAlert(false), 3000);
+    } catch (error: any) {
+      console.error('Error updating payment status:', error);
+      setSuccessMessage(`Failed to update payment status: ${error.message}`);
+      setShowSuccessAlert(true);
+      setTimeout(() => setShowSuccessAlert(false), 3000);
+    }
+  };
+
+  const handleDownloadInvoice = (order: Order) => {
+    // Create invoice HTML
+    const invoiceHTML = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Invoice - ${order.orderNumber}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 40px; color: #333; }
+          .header { text-align: center; margin-bottom: 40px; border-bottom: 3px solid #1b981b; padding-bottom: 20px; }
+          .header h1 { color: #1b981b; margin: 0; font-size: 32px; }
+          .header p { margin: 5px 0; color: #666; }
+          .invoice-details { display: flex; justify-content: space-between; margin-bottom: 30px; }
+          .section { margin-bottom: 20px; }
+          .section-title { font-weight: bold; color: #1b981b; margin-bottom: 10px; font-size: 14px; text-transform: uppercase; }
+          .info-row { margin: 5px 0; }
+          .info-label { font-weight: 600; display: inline-block; width: 120px; }
+          table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+          th { background: #1b981b; color: white; padding: 12px; text-align: left; }
+          td { padding: 10px; border-bottom: 1px solid #ddd; }
+          .total-row { font-weight: bold; font-size: 18px; background: #f0f0f0; }
+          .footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 2px solid #ddd; color: #666; font-size: 12px; }
+          .status-badge { display: inline-block; padding: 5px 10px; border-radius: 5px; font-size: 12px; font-weight: bold; }
+          .status-paid { background: #d4edda; color: #155724; }
+          .status-pending { background: #fff3cd; color: #856404; }
+          .status-completed { background: #d4edda; color: #155724; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>RECYCLE MY DEVICE</h1>
+          <p>Device Recycling & Purchase</p>
+          <p>www.recyclemydevice.co.uk | support@recyclemydevice.co.uk</p>
+        </div>
+
+        <div class="invoice-details">
+          <div>
+            <div class="section-title">Invoice Details</div>
+            <div class="info-row"><span class="info-label">Invoice No:</span> ${order.orderNumber}</div>
+            <div class="info-row"><span class="info-label">Date:</span> ${new Date(order.orderDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+            <div class="info-row"><span class="info-label">Status:</span> <span class="status-badge status-${order.status}">${order.status.toUpperCase()}</span></div>
+            <div class="info-row"><span class="info-label">Payment:</span> <span class="status-badge status-${order.paymentStatus}">${order.paymentStatus.toUpperCase()}</span></div>
+          </div>
+          <div>
+            <div class="section-title">Customer Information</div>
+            <div class="info-row"><strong>${order.customerName}</strong></div>
+            <div class="info-row">${order.customerEmail}</div>
+            <div class="info-row">${order.customerPhone}</div>
+            <div class="info-row" style="margin-top: 10px;">
+              <strong>Shipping Address:</strong><br>
+              ${order.shippingAddress}
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Order Items</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Device</th>
+                <th>Condition</th>
+                <th>Storage</th>
+                <th style="text-align: right;">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${order.devices.map(device => `
+                <tr>
+                  <td>${device.name}</td>
+                  <td>${device.condition}</td>
+                  <td>${device.storage}</td>
+                  <td style="text-align: right;">£${device.price.toLocaleString()}</td>
+                </tr>
+              `).join('')}
+              <tr class="total-row">
+                <td colspan="3" style="text-align: right; padding-right: 20px;">Total Amount:</td>
+                <td style="text-align: right;">£${(order.totalAmount || 0).toLocaleString()}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        ${order.orderNotes ? `
+        <div class="section">
+          <div class="section-title">Notes</div>
+          <p style="background: #f9f9f9; padding: 15px; border-radius: 5px; border-left: 4px solid #1b981b;">${order.orderNotes}</p>
+        </div>
+        ` : ''}
+
+        <div class="footer">
+          <p><strong>Thank you for choosing Recycle My Device!</strong></p>
+          <p>For any queries, please contact us at support@recyclemydevice.co.uk or call 0800 123 4567</p>
+          <p style="margin-top: 10px; font-size: 11px;">This is a computer-generated invoice. No signature required.</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    // Create a blob and download
+    const blob = new Blob([invoiceHTML], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Invoice-${order.orderNumber}.html`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    // Show success message
+    setSuccessMessage('Invoice downloaded successfully!');
     setShowSuccessAlert(true);
     setTimeout(() => setShowSuccessAlert(false), 3000);
   };
 
-  const handleUpdatePaymentStatus = (orderId: string, newPaymentStatus: 'paid' | 'pending' | 'failed') => {
-    setOrders(orders.map(order => 
-      order.id === orderId ? { ...order, paymentStatus: newPaymentStatus } : order
-    ));
-    setSuccessMessage(`Payment status updated to ${newPaymentStatus.charAt(0).toUpperCase() + newPaymentStatus.slice(1)}`);
-    setShowSuccessAlert(true);
-    setTimeout(() => setShowSuccessAlert(false), 3000);
+  const getStatusColor = (statusCode: string) => {
+    const colors: Record<string, { button: string; active: string; icon: any }> = {
+      pending: {
+        button: 'bg-white hover:bg-yellow-50 text-yellow-700 border-2 border-yellow-200 hover:border-yellow-300',
+        active: 'bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 border-2 border-yellow-300 cursor-not-allowed',
+        icon: <Clock className="w-4 h-4" />
+      },
+      processing: {
+        button: 'bg-white hover:bg-blue-50 text-blue-700 border-2 border-blue-200 hover:border-blue-300',
+        active: 'bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 border-2 border-blue-300 cursor-not-allowed',
+        icon: <Truck className="w-4 h-4" />
+      },
+      completed: {
+        button: 'bg-white hover:bg-green-50 text-green-700 border-2 border-green-200 hover:border-green-300',
+        active: 'bg-gradient-to-r from-green-100 to-green-200 text-green-800 border-2 border-green-300 cursor-not-allowed',
+        icon: <CheckCircle2 className="w-4 h-4" />
+      },
+      cancelled: {
+        button: 'bg-white hover:bg-red-50 text-red-700 border-2 border-red-200 hover:border-red-300',
+        active: 'bg-gradient-to-r from-red-100 to-red-200 text-red-800 border-2 border-red-300 cursor-not-allowed',
+        icon: <XCircle className="w-4 h-4" />
+      }
+    };
+    return colors[statusCode] || colors.pending;
+  };
+
+  const getPaymentColor = (statusCode: string) => {
+    const colors: Record<string, { button: string; active: string; icon: any }> = {
+      paid: {
+        button: 'bg-white hover:bg-green-50 text-green-700 border-2 border-green-200 hover:border-green-300',
+        active: 'bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 border-2 border-green-300 cursor-not-allowed',
+        icon: <CheckCircle2 className="w-4 h-4" />
+      },
+      pending: {
+        button: 'bg-white hover:bg-orange-50 text-orange-700 border-2 border-orange-200 hover:border-orange-300',
+        active: 'bg-gradient-to-r from-orange-100 to-orange-200 text-orange-800 border-2 border-orange-300 cursor-not-allowed',
+        icon: <AlertCircle className="w-4 h-4" />
+      },
+      failed: {
+        button: 'bg-white hover:bg-red-50 text-red-700 border-2 border-red-200 hover:border-red-300',
+        active: 'bg-gradient-to-r from-red-100 to-red-200 text-red-800 border-2 border-red-300 cursor-not-allowed',
+        icon: <XCircle className="w-4 h-4" />
+      }
+    };
+    return colors[statusCode] || colors.pending;
   };
 
   const getStatusBadge = (status: string) => {
+    if (!status) return null;
+    
     const styles = {
       pending: 'bg-gradient-to-r from-yellow-50 to-yellow-100 text-yellow-700 border-yellow-200',
       processing: 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 border-blue-200',
@@ -192,14 +377,16 @@ const RecyclerOrders: React.FC = () => {
     };
 
     return (
-      <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border-2 ${styles[status as keyof typeof styles]}`}>
-        {icons[status as keyof typeof icons]}
+      <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border-2 ${styles[status as keyof typeof styles] || 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+        {icons[status as keyof typeof icons] || <Package className="w-3 h-3" />}
         {status.charAt(0).toUpperCase() + status.slice(1)}
       </span>
     );
   };
 
   const getPaymentBadge = (paymentStatus: string) => {
+    if (!paymentStatus) return null;
+    
     const styles = {
       paid: 'bg-gradient-to-r from-green-50 to-emerald-50 text-green-700 border-green-200',
       pending: 'bg-gradient-to-r from-orange-50 to-orange-100 text-orange-700 border-orange-200',
@@ -213,8 +400,8 @@ const RecyclerOrders: React.FC = () => {
     };
 
     return (
-      <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border-2 ${styles[paymentStatus as keyof typeof styles]}`}>
-        {icons[paymentStatus as keyof typeof icons]}
+      <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border-2 ${styles[paymentStatus as keyof typeof styles] || 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+        {icons[paymentStatus as keyof typeof icons] || <CreditCard className="w-3 h-3" />}
         {paymentStatus.charAt(0).toUpperCase() + paymentStatus.slice(1)}
       </span>
     );
@@ -279,8 +466,37 @@ const RecyclerOrders: React.FC = () => {
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto p-8">
           <div className="max-w-7xl mx-auto">
+            {/* Loading State */}
+            {isLoading && (
+              <div className="flex items-center justify-center py-20">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="w-16 h-16 border-4 border-[#1b981b] border-t-transparent rounded-full animate-spin"></div>
+                  <p className="text-gray-600 font-semibold">Loading orders...</p>
+                </div>
+              </div>
+            )}
+
+            {/* Error State */}
+            {error && (
+              <div className="bg-gradient-to-r from-red-50 to-red-100 border-2 border-red-200 rounded-2xl p-6">
+                <div className="flex items-center gap-3">
+                  <AlertCircle className="w-6 h-6 text-red-600" />
+                  <div>
+                    <h3 className="font-bold text-red-900">Error Loading Orders</h3>
+                    <p className="text-sm text-red-700 mt-1">{error}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={fetchOrders}
+                  className="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold text-sm transition-colors"
+                >
+                  Try Again
+                </button>
+              </div>
+            )}
+
             {/* Success Alert */}
-            {showSuccessAlert && (
+            {!isLoading && !error && showSuccessAlert && (
               <div className="fixed top-24 right-8 z-50 animate-in slide-in-from-right-5 duration-300">
                 <div className="bg-gradient-to-r from-[#1b981b] to-[#157a15] text-white px-6 py-4 rounded-2xl shadow-2xl border-2 border-white flex items-center gap-3">
                   <CheckCircle2 className="w-5 h-5" />
@@ -289,6 +505,7 @@ const RecyclerOrders: React.FC = () => {
               </div>
             )}
             {/* Stats Cards */}
+            {!isLoading && !error && (
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
               <div className="relative overflow-hidden bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-lg border border-gray-200 p-5">
                 <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-blue-400/20 to-transparent rounded-full -mr-10 -mt-10 blur-2xl"></div>
@@ -355,8 +572,10 @@ const RecyclerOrders: React.FC = () => {
                 </div>
               </div>
             </div>
+            )}
 
             {/* Search and Filters */}
+            {!isLoading && !error && (
             <div className="bg-gradient-to-r from-white to-gray-50 rounded-3xl shadow-lg border border-gray-200 p-6 mb-6">
               <div className="flex flex-col lg:flex-row gap-4">
                 <div className="relative flex-1">
@@ -381,10 +600,11 @@ const RecyclerOrders: React.FC = () => {
                     className="w-full pl-16 pr-10 py-4 bg-white border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#1b981b]/50 focus:border-[#1b981b] transition-all text-sm font-semibold appearance-none cursor-pointer shadow-sm hover:shadow-md"
                   >
                     <option value="all">All Status</option>
-                    <option value="pending">Pending</option>
-                    <option value="processing">Processing</option>
-                    <option value="completed">Completed</option>
-                    <option value="cancelled">Cancelled</option>
+                    {orderStatuses.map((status) => (
+                      <option key={status._id} value={status.name}>
+                        {status.label || status.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div className="relative w-full lg:w-48">
@@ -397,15 +617,19 @@ const RecyclerOrders: React.FC = () => {
                     className="w-full pl-16 pr-10 py-4 bg-white border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#1b981b]/50 focus:border-[#1b981b] transition-all text-sm font-semibold appearance-none cursor-pointer shadow-sm hover:shadow-md"
                   >
                     <option value="all">All Payments</option>
-                    <option value="paid">Paid</option>
-                    <option value="pending">Pending</option>
-                    <option value="failed">Failed</option>
+                    {paymentStatuses.map((status) => (
+                      <option key={status._id} value={status.name}>
+                        {status.label || status.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
             </div>
+            )}
 
             {/* Orders List */}
+            {!isLoading && !error && (
             <div className="space-y-5">
               {filteredOrders.length === 0 ? (
                 <div className="bg-white rounded-3xl shadow-lg border border-gray-200 p-12 text-center">
@@ -461,7 +685,7 @@ const RecyclerOrders: React.FC = () => {
                               <div>
                                 <p className="text-xs text-gray-500 font-semibold">Total Amount</p>
                                 <p className="text-lg font-bold bg-gradient-to-r from-[#1b981b] to-[#157a15] bg-clip-text text-transparent">
-                                  £{order.totalAmount.toLocaleString()}
+                                  £{(order.totalAmount || 0).toLocaleString()}
                                 </p>
                               </div>
                             </div>
@@ -564,7 +788,10 @@ const RecyclerOrders: React.FC = () => {
                               </div>
                             )}
 
-                            <button className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-gray-700 to-gray-800 hover:from-gray-800 hover:to-gray-900 text-white rounded-xl font-bold transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5">
+                            <button 
+                              onClick={() => handleDownloadInvoice(order)}
+                              className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-gray-700 to-gray-800 hover:from-gray-800 hover:to-gray-900 text-white rounded-xl font-bold transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+                            >
                               <Download className="w-4 h-4" />
                               Download Invoice
                             </button>
@@ -580,66 +807,26 @@ const RecyclerOrders: React.FC = () => {
                               Manage Order Status
                             </h4>
                             <div className="space-y-2">
-                              <button
-                                onClick={() => handleUpdateOrderStatus(order.id, 'pending')}
-                                disabled={order.status === 'pending'}
-                                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm transition-all ${
-                                  order.status === 'pending'
-                                    ? 'bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 border-2 border-yellow-300 cursor-not-allowed'
-                                    : 'bg-white hover:bg-yellow-50 text-yellow-700 border-2 border-yellow-200 hover:border-yellow-300 hover:shadow-md transform hover:-translate-y-0.5'
-                                }`}
-                              >
-                                <span className="flex items-center gap-2">
-                                  <Clock className="w-4 h-4" />
-                                  Pending
-                                </span>
-                                {order.status === 'pending' && <span className="flex items-center gap-1 text-xs"><Check className="w-3 h-3" /> Current</span>}
-                              </button>
-                              <button
-                                onClick={() => handleUpdateOrderStatus(order.id, 'processing')}
-                                disabled={order.status === 'processing'}
-                                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm transition-all ${
-                                  order.status === 'processing'
-                                    ? 'bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 border-2 border-blue-300 cursor-not-allowed'
-                                    : 'bg-white hover:bg-blue-50 text-blue-700 border-2 border-blue-200 hover:border-blue-300 hover:shadow-md transform hover:-translate-y-0.5'
-                                }`}
-                              >
-                                <span className="flex items-center gap-2">
-                                  <Truck className="w-4 h-4" />
-                                  Processing
-                                </span>
-                                {order.status === 'processing' && <span className="flex items-center gap-1 text-xs"><Check className="w-3 h-3" /> Current</span>}
-                              </button>
-                              <button
-                                onClick={() => handleUpdateOrderStatus(order.id, 'completed')}
-                                disabled={order.status === 'completed'}
-                                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm transition-all ${
-                                  order.status === 'completed'
-                                    ? 'bg-gradient-to-r from-green-100 to-green-200 text-green-800 border-2 border-green-300 cursor-not-allowed'
-                                    : 'bg-white hover:bg-green-50 text-green-700 border-2 border-green-200 hover:border-green-300 hover:shadow-md transform hover:-translate-y-0.5'
-                                }`}
-                              >
-                                <span className="flex items-center gap-2">
-                                  <CheckCircle2 className="w-4 h-4" />
-                                  Completed
-                                </span>
-                                {order.status === 'completed' && <span className="flex items-center gap-1 text-xs"><Check className="w-3 h-3" /> Current</span>}
-                              </button>
-                              <button
-                                onClick={() => handleUpdateOrderStatus(order.id, 'cancelled')}
-                                disabled={order.status === 'cancelled'}
-                                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm transition-all ${
-                                  order.status === 'cancelled'
-                                    ? 'bg-gradient-to-r from-red-100 to-red-200 text-red-800 border-2 border-red-300 cursor-not-allowed'
-                                    : 'bg-white hover:bg-red-50 text-red-700 border-2 border-red-200 hover:border-red-300 hover:shadow-md transform hover:-translate-y-0.5'
-                                }`}
-                              >
-                                <span className="flex items-center gap-2">
-                                  <XCircle className="w-4 h-4" />
-                                  Cancelled
-                                </span>
-                                {order.status === 'cancelled' && <span className="flex items-center gap-1 text-xs"><Check className="w-3 h-3" /> Current</span>}
-                              </button>
+                              {orderStatuses.map((status) => {
+                                const colorConfig = getStatusColor(status.name);
+                                const isActive = order.status === status.name;
+                                return (
+                                  <button
+                                    key={status._id}
+                                    onClick={() => handleUpdateOrderStatus(order.id, status.name)}
+                                    disabled={isActive}
+                                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm transition-all hover:shadow-md transform hover:-translate-y-0.5 ${
+                                      isActive ? colorConfig.active : colorConfig.button
+                                    }`}
+                                  >
+                                    <span className="flex items-center gap-2">
+                                      {colorConfig.icon}
+                                      {status.label || status.name}
+                                    </span>
+                                    {isActive && <span className="flex items-center gap-1 text-xs"><Check className="w-3 h-3" /> Current</span>}
+                                  </button>
+                                );
+                              })}
                             </div>
                           </div>
 
@@ -650,51 +837,26 @@ const RecyclerOrders: React.FC = () => {
                               Manage Payment Status
                             </h4>
                             <div className="space-y-2">
-                              <button
-                                onClick={() => handleUpdatePaymentStatus(order.id, 'paid')}
-                                disabled={order.paymentStatus === 'paid'}
-                                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm transition-all ${
-                                  order.paymentStatus === 'paid'
-                                    ? 'bg-gradient-to-r from-green-100 to-emerald-200 text-green-800 border-2 border-green-300 cursor-not-allowed'
-                                    : 'bg-white hover:bg-green-50 text-green-700 border-2 border-green-200 hover:border-green-300 hover:shadow-md transform hover:-translate-y-0.5'
-                                }`}
-                              >
-                                <span className="flex items-center gap-2">
-                                  <CheckCircle2 className="w-4 h-4" />
-                                  Paid
-                                </span>
-                                {order.paymentStatus === 'paid' && <span className="flex items-center gap-1 text-xs"><Check className="w-3 h-3" /> Current</span>}
-                              </button>
-                              <button
-                                onClick={() => handleUpdatePaymentStatus(order.id, 'pending')}
-                                disabled={order.paymentStatus === 'pending'}
-                                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm transition-all ${
-                                  order.paymentStatus === 'pending'
-                                    ? 'bg-gradient-to-r from-orange-100 to-orange-200 text-orange-800 border-2 border-orange-300 cursor-not-allowed'
-                                    : 'bg-white hover:bg-orange-50 text-orange-700 border-2 border-orange-200 hover:border-orange-300 hover:shadow-md transform hover:-translate-y-0.5'
-                                }`}
-                              >
-                                <span className="flex items-center gap-2">
-                                  <AlertCircle className="w-4 h-4" />
-                                  Pending
-                                </span>
-                                {order.paymentStatus === 'pending' && <span className="flex items-center gap-1 text-xs"><Check className="w-3 h-3" /> Current</span>}
-                              </button>
-                              <button
-                                onClick={() => handleUpdatePaymentStatus(order.id, 'failed')}
-                                disabled={order.paymentStatus === 'failed'}
-                                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm transition-all ${
-                                  order.paymentStatus === 'failed'
-                                    ? 'bg-gradient-to-r from-red-100 to-red-200 text-red-800 border-2 border-red-300 cursor-not-allowed'
-                                    : 'bg-white hover:bg-red-50 text-red-700 border-2 border-red-200 hover:border-red-300 hover:shadow-md transform hover:-translate-y-0.5'
-                                }`}
-                              >
-                                <span className="flex items-center gap-2">
-                                  <XCircle className="w-4 h-4" />
-                                  Failed
-                                </span>
-                                {order.paymentStatus === 'failed' && <span className="flex items-center gap-1 text-xs"><Check className="w-3 h-3" /> Current</span>}
-                              </button>
+                              {paymentStatuses.map((status) => {
+                                const colorConfig = getPaymentColor(status.name);
+                                const isActive = order.paymentStatus === status.name;
+                                return (
+                                  <button
+                                    key={status._id}
+                                    onClick={() => handleUpdatePaymentStatus(order.id, status.name)}
+                                    disabled={isActive}
+                                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm transition-all hover:shadow-md transform hover:-translate-y-0.5 ${
+                                      isActive ? colorConfig.active : colorConfig.button
+                                    }`}
+                                  >
+                                    <span className="flex items-center gap-2">
+                                      {colorConfig.icon}
+                                      {status.label || status.name}
+                                    </span>
+                                    {isActive && <span className="flex items-center gap-1 text-xs"><Check className="w-3 h-3" /> Current</span>}
+                                  </button>
+                                );
+                              })}
                             </div>
                             <div className="mt-4 p-3 bg-white/60 rounded-xl border border-purple-200">
                               <p className="text-xs text-gray-600 leading-relaxed">
@@ -709,6 +871,7 @@ const RecyclerOrders: React.FC = () => {
                 ))
               )}
             </div>
+            )}
           </div>
         </main>
       </div>

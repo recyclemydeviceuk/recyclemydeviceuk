@@ -1,16 +1,30 @@
-import React, { useState } from 'react';
-import { Smartphone, Search, Plus, Edit2, Trash2, Filter } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Smartphone, Search, Plus, Edit2, Trash2, Filter, Loader2, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut } from 'lucide-react';
 import AdminSidebar from '../../components/AdminSidebar';
+import Pagination from '../../components/Pagination';
+import { adminAPI } from '../../services/api';
 
 interface Device {
-  id: number;
+  _id: string;
   name: string;
-  brand: string;
-  basePrice: string;
-  maxPrice: string;
-  status: 'active' | 'inactive';
+  brand: {
+    _id: string;
+    name: string;
+  };
+  category: string;
+  image: string;
+  status: 'active' | 'inactive' | 'discontinued';
+  storageOptions: string[];
+  conditionOptions: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface Stats {
+  totalDevices: number;
+  totalRecyclers: number;
   totalOrders: number;
 }
 
@@ -19,52 +33,122 @@ const Devices: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBrand, setSelectedBrand] = useState('All');
   const [selectedStatus, setSelectedStatus] = useState('All');
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [stats, setStats] = useState<Stats>({ totalDevices: 0, totalRecyclers: 0, totalOrders: 0 });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    pages: 0,
+  });
 
   const handleLogout = () => {
     localStorage.removeItem('adminAuth');
     localStorage.removeItem('adminEmail');
+    sessionStorage.removeItem('adminToken');
     navigate('/panel/login');
   };
 
-  // Mock device data
-  const devices: Device[] = [
-    { id: 1, name: 'iPhone 16 Pro Max', brand: 'Apple', basePrice: '£750', maxPrice: '£850', status: 'active', totalOrders: 45 },
-    { id: 2, name: 'iPhone 16 Pro', brand: 'Apple', basePrice: '£650', maxPrice: '£750', status: 'active', totalOrders: 38 },
-    { id: 3, name: 'iPhone 16 Plus', brand: 'Apple', basePrice: '£580', maxPrice: '£650', status: 'active', totalOrders: 32 },
-    { id: 4, name: 'iPhone 16', brand: 'Apple', basePrice: '£450', maxPrice: '£580', status: 'active', totalOrders: 28 },
-    { id: 5, name: 'iPhone 15 Pro Max', brand: 'Apple', basePrice: '£620', maxPrice: '£720', status: 'active', totalOrders: 52 },
-    { id: 6, name: 'iPhone 15 Pro', brand: 'Apple', basePrice: '£520', maxPrice: '£620', status: 'active', totalOrders: 48 },
-    { id: 7, name: 'iPhone 15 Plus', brand: 'Apple', basePrice: '£450', maxPrice: '£520', status: 'active', totalOrders: 41 },
-    { id: 8, name: 'iPhone 15', brand: 'Apple', basePrice: '£380', maxPrice: '£450', status: 'active', totalOrders: 35 },
-    { id: 9, name: 'iPhone 14 Pro Max', brand: 'Apple', basePrice: '£500', maxPrice: '£580', status: 'active', totalOrders: 67 },
-    { id: 10, name: 'iPhone 14 Pro', brand: 'Apple', basePrice: '£420', maxPrice: '£500', status: 'active', totalOrders: 59 },
-    { id: 11, name: 'iPhone 14 Plus', brand: 'Apple', basePrice: '£380', maxPrice: '£420', status: 'active', totalOrders: 44 },
-    { id: 12, name: 'iPhone 14', brand: 'Apple', basePrice: '£320', maxPrice: '£380', status: 'active', totalOrders: 38 },
-    { id: 13, name: 'iPhone 13 Pro Max', brand: 'Apple', basePrice: '£400', maxPrice: '£450', status: 'active', totalOrders: 71 },
-    { id: 14, name: 'iPhone 13 Pro', brand: 'Apple', basePrice: '£350', maxPrice: '£400', status: 'active', totalOrders: 65 },
-    { id: 15, name: 'iPhone 13 Mini', brand: 'Apple', basePrice: '£250', maxPrice: '£280', status: 'active', totalOrders: 42 },
-    { id: 16, name: 'iPhone 13', brand: 'Apple', basePrice: '£280', maxPrice: '£320', status: 'active', totalOrders: 58 },
-    { id: 17, name: 'Galaxy S24 Ultra', brand: 'Samsung', basePrice: '£680', maxPrice: '£780', status: 'active', totalOrders: 34 },
-    { id: 18, name: 'Galaxy S24+', brand: 'Samsung', basePrice: '£520', maxPrice: '£600', status: 'active', totalOrders: 29 },
-    { id: 19, name: 'Galaxy S24', brand: 'Samsung', basePrice: '£420', maxPrice: '£480', status: 'active', totalOrders: 31 },
-    { id: 20, name: 'Galaxy S23 Ultra', brand: 'Samsung', basePrice: '£550', maxPrice: '£620', status: 'active', totalOrders: 47 },
-    { id: 21, name: 'Galaxy S23+', brand: 'Samsung', basePrice: '£420', maxPrice: '£480', status: 'active', totalOrders: 39 },
-    { id: 22, name: 'Galaxy S23', brand: 'Samsung', basePrice: '£350', maxPrice: '£400', status: 'active', totalOrders: 44 },
-    { id: 23, name: 'Galaxy S22 Ultra', brand: 'Samsung', basePrice: '£420', maxPrice: '£480', status: 'active', totalOrders: 53 },
-    { id: 24, name: 'Galaxy S22+', brand: 'Samsung', basePrice: '£330', maxPrice: '£380', status: 'active', totalOrders: 41 },
-    { id: 25, name: 'Galaxy S22', brand: 'Samsung', basePrice: '£280', maxPrice: '£320', status: 'active', totalOrders: 38 },
-  ];
+  // Fetch devices from backend
+  const fetchDevices = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const params: any = {
+        page: pagination.page,
+        limit: pagination.limit,
+      };
+      if (selectedBrand !== 'All') params.brand = selectedBrand;
+      if (selectedStatus !== 'All') params.status = selectedStatus;
+      if (searchQuery) params.search = searchQuery;
+      
+      console.log('🔄 Fetching devices with params:', params);
+      const response: any = await adminAPI.devices.getAll(params);
+      console.log('📱 Devices API Response:', response);
+      
+      const devicesList = response.data || response.devices || [];
+      console.log('📋 Devices list:', devicesList);
+      console.log('✅ Total devices found:', devicesList.length);
+      
+      setDevices(Array.isArray(devicesList) ? devicesList : []);
+      
+      // Update pagination info
+      if (response.pagination) {
+        setPagination({
+          page: response.pagination.page,
+          limit: response.pagination.limit,
+          total: response.pagination.total,
+          pages: response.pagination.pages,
+        });
+      }
+    } catch (err: any) {
+      console.error('❌ Error fetching devices:', err);
+      console.error('Error details:', err.response?.data || err.message);
+      setError(err.message || 'Failed to load devices');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const brands = ['All', 'Apple', 'Samsung'];
-  const statuses = ['All', 'active', 'inactive'];
+  // Fetch dashboard stats
+  const fetchStats = async () => {
+    try {
+      console.log('🔄 Fetching dashboard stats...');
+      const response: any = await adminAPI.dashboard.getStats();
+      console.log('📊 Stats API Response:', response);
+      
+      const overview = response.data?.overview || response.overview || {};
+      console.log('📈 Overview data:', overview);
+      
+      const statsData = {
+        totalDevices: overview.totalDevices || 0,
+        totalRecyclers: overview.totalRecyclers || 0,
+        totalOrders: overview.totalOrders || 0,
+      };
+      console.log('✅ Setting stats:', statsData);
+      setStats(statsData);
+    } catch (err: any) {
+      console.error('❌ Error fetching stats:', err);
+      console.error('Error details:', err.response?.data || err.message);
+    }
+  };
 
-  const filteredDevices = devices
-    .filter(device => selectedBrand === 'All' || device.brand === selectedBrand)
-    .filter(device => selectedStatus === 'All' || device.status === selectedStatus)
-    .filter(device => 
-      device.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      device.brand.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+  // Delete device
+  const handleDelete = async (id: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to delete "${name}"?`)) {
+      return;
+    }
+
+    try {
+      setDeleting(id);
+      await adminAPI.devices.delete(id);
+      setDevices(devices.filter(d => d._id !== id));
+      setStats(prev => ({ ...prev, totalDevices: prev.totalDevices - 1 }));
+    } catch (err: any) {
+      console.error('Error deleting device:', err);
+      alert(err.message || 'Failed to delete device');
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  // Fetch data on mount and when filters or page change
+  useEffect(() => {
+    fetchDevices();
+  }, [selectedBrand, selectedStatus, searchQuery, pagination.page]);
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  const statuses = ['All', 'active', 'inactive', 'discontinued'];
+
+  // Get unique brands from devices
+  const uniqueBrands = ['All', ...Array.from(new Set(devices.map(d => d.brand?.name).filter(Boolean)))];
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -98,7 +182,7 @@ const Devices: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600 mb-1">Total Devices</p>
-                    <p className="text-3xl font-bold text-gray-800">{devices.length}</p>
+                    <p className="text-3xl font-bold text-gray-800">{stats.totalDevices}</p>
                   </div>
                   <div className="w-12 h-12 bg-[#1b981b] rounded-xl flex items-center justify-center">
                     <Smartphone className="w-6 h-6 text-white" />
@@ -110,7 +194,7 @@ const Devices: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600 mb-1">Total Recyclers</p>
-                    <p className="text-3xl font-bold text-gray-800">5</p>
+                    <p className="text-3xl font-bold text-gray-800">{stats.totalRecyclers}</p>
                   </div>
                   <div className="w-12 h-12 bg-[#1b981b] rounded-xl flex items-center justify-center">
                     <div className="w-3 h-3 bg-white rounded-full"></div>
@@ -122,9 +206,7 @@ const Devices: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600 mb-1">Total Orders</p>
-                    <p className="text-3xl font-bold text-gray-800">
-                      {devices.reduce((sum, d) => sum + d.totalOrders, 0)}
-                    </p>
+                    <p className="text-3xl font-bold text-gray-800">{stats.totalOrders}</p>
                   </div>
                   <div className="w-12 h-12 bg-[#1b981b] rounded-xl flex items-center justify-center">
                     <div className="text-white font-bold text-lg">#</div>
@@ -156,7 +238,7 @@ const Devices: React.FC = () => {
                     onChange={(e) => setSelectedBrand(e.target.value)}
                     className="px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1b981b] focus:border-[#1b981b] transition-all bg-white cursor-pointer"
                   >
-                    {brands.map(brand => (
+                    {uniqueBrands.map(brand => (
                       <option key={brand} value={brand}>{brand}</option>
                     ))}
                   </select>
@@ -190,15 +272,43 @@ const Devices: React.FC = () => {
             {/* Results Count */}
             <div className="mb-4">
               <p className="text-sm text-gray-600">
-                Showing <span className="font-semibold text-gray-900">{filteredDevices.length}</span> of <span className="font-semibold text-gray-900">{devices.length}</span> devices
+                Showing <span className="font-semibold text-gray-900">{devices.length}</span> devices
               </p>
             </div>
 
+            {/* Loading State */}
+            {loading && (
+              <div className="bg-white rounded-xl border-2 border-gray-200 p-12 text-center">
+                <Loader2 className="w-12 h-12 text-[#1b981b] mx-auto mb-4 animate-spin" />
+                <p className="text-gray-600">Loading devices...</p>
+              </div>
+            )}
+
+            {/* Error State */}
+            {error && !loading && (
+              <div className="bg-red-50 border-2 border-red-200 rounded-xl p-6 mb-6">
+                <div className="flex items-center space-x-3">
+                  <AlertCircle className="w-6 h-6 text-red-600" />
+                  <div>
+                    <p className="text-red-800 font-semibold">Error loading devices</p>
+                    <p className="text-red-600 text-sm">{error}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={fetchDevices}
+                  className="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-all"
+                >
+                  Try Again
+                </button>
+              </div>
+            )}
+
             {/* Devices List View */}
-            <div className="space-y-3">
-              {filteredDevices.map((device) => (
+            {!loading && !error && (
+              <div className="space-y-3">
+                {devices.map((device) => (
                 <div
-                  key={device.id}
+                  key={device._id}
                   className="bg-white rounded-xl border-2 border-gray-200 hover:border-[#1b981b] hover:shadow-lg transition-all duration-200 p-6"
                 >
                   <div className="flex items-center justify-between">
@@ -206,31 +316,38 @@ const Devices: React.FC = () => {
                     <div className="flex items-center space-x-6 flex-1">
                       {/* Phone Image */}
                       <div className="w-14 h-14 bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl flex items-center justify-center flex-shrink-0 p-2">
-                        <img 
-                          src="https://storage.googleapis.com/atomjuice-product-images/apple/iphone-16-pro/default.png" 
-                          alt={device.name}
-                          className="w-full h-full object-contain"
-                        />
+                        {device.image ? (
+                          <img 
+                            src={device.image} 
+                            alt={device.name}
+                            className="w-full h-full object-contain"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = 'https://storage.googleapis.com/atomjuice-product-images/apple/iphone-16-pro/default.png';
+                            }}
+                          />
+                        ) : (
+                          <Smartphone className="w-8 h-8 text-gray-400" />
+                        )}
                       </div>
 
                       {/* Name and Brand */}
                       <div className="flex-1 min-w-0">
                         <h3 className="text-lg font-bold text-gray-900 mb-1">{device.name}</h3>
-                        <p className="text-sm text-gray-600">{device.brand}</p>
+                        <p className="text-sm text-gray-600">{device.brand?.name || 'Unknown'}</p>
                       </div>
 
-                      {/* Price Range */}
+                      {/* Storage Options */}
                       <div className="text-center px-6 border-l-2 border-r-2 border-gray-200">
-                        <p className="text-xs text-gray-500 mb-1">Price Range</p>
-                        <p className="text-sm font-bold text-[#1b981b]">
-                          {device.basePrice} - {device.maxPrice}
+                        <p className="text-xs text-gray-500 mb-1">Storage Options</p>
+                        <p className="text-sm font-bold text-gray-900">
+                          {device.storageOptions?.length || 0}
                         </p>
                       </div>
 
-                      {/* Total Orders */}
+                      {/* Category */}
                       <div className="text-center px-6 border-r-2 border-gray-200">
-                        <p className="text-xs text-gray-500 mb-1">Orders</p>
-                        <p className="text-sm font-bold text-gray-900">{device.totalOrders}</p>
+                        <p className="text-xs text-gray-500 mb-1">Category</p>
+                        <p className="text-sm font-bold text-gray-900 capitalize">{device.category}</p>
                       </div>
 
                       {/* Status */}
@@ -251,26 +368,50 @@ const Devices: React.FC = () => {
                     {/* Actions */}
                     <div className="flex items-center space-x-2 ml-6">
                       <button
-                        onClick={() => navigate(`/panel/devices/edit/${device.id}`)}
+                        onClick={() => navigate(`/panel/devices/edit/${device._id}`)}
                         className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200"
+                        title="Edit device"
                       >
                         <Edit2 className="w-5 h-5" />
                       </button>
-                      <button className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200">
-                        <Trash2 className="w-5 h-5" />
+                      <button 
+                        onClick={() => handleDelete(device._id, device.name)}
+                        disabled={deleting === device._id}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200 disabled:opacity-50"
+                        title="Delete device"
+                      >
+                        {deleting === device._id ? (
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-5 h-5" />
+                        )}
                       </button>
                     </div>
                   </div>
                 </div>
               ))}
-            </div>
+              </div>
+            )}
 
             {/* Empty State */}
-            {filteredDevices.length === 0 && (
+            {!loading && !error && devices.length === 0 && (
               <div className="bg-white rounded-xl border-2 border-gray-200 p-12 text-center">
                 <Smartphone className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                 <h3 className="text-lg font-bold text-gray-900 mb-2">No devices found</h3>
                 <p className="text-gray-600">Try adjusting your search or filters</p>
+              </div>
+            )}
+
+            {/* Pagination */}
+            {!loading && !error && devices.length > 0 && pagination.pages > 1 && (
+              <div className="mt-6">
+                <Pagination
+                  currentPage={pagination.page}
+                  totalPages={pagination.pages}
+                  totalItems={pagination.total}
+                  itemsPerPage={pagination.limit}
+                  onPageChange={(page) => setPagination(prev => ({ ...prev, page }))}
+                />
               </div>
             )}
           </div>

@@ -25,7 +25,7 @@ const RecyclerLogin: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/auth/recycler/send-otp`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/auth/recycler/send-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -122,7 +122,7 @@ const RecyclerLogin: React.FC = () => {
             </p>
             <p className="text-sm text-gray-500">
               New partner?{' '}
-              <a href="/contact" className="text-[#1b981b] hover:text-[#157a15] font-medium transition-colors">
+              <a href="/become-a-seller" className="text-[#1b981b] hover:text-[#157a15] font-medium transition-colors">
                 Apply to join
               </a>
             </p>

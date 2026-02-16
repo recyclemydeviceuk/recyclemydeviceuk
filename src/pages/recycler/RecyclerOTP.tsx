@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, RefreshCw, Recycle } from 'lucide-react';
+import { recyclerAuthService } from '../../services/recyclerAuth';
 
 const RecyclerOTP: React.FC = () => {
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
@@ -87,7 +88,7 @@ const RecyclerOTP: React.FC = () => {
     setError('');
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/auth/recycler/verify-otp`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/auth/recycler/verify-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -104,12 +105,13 @@ const RecyclerOTP: React.FC = () => {
         throw new Error(data.message || 'Invalid OTP');
       }
 
-      // Success - store auth token and navigate
-      localStorage.setItem('recyclerToken', data.data.token);
-      localStorage.setItem('recyclerEmail', data.data.recycler.email);
-      localStorage.setItem('recyclerId', data.data.recycler.id);
-      localStorage.setItem('recyclerAuth', 'true');
+      // Success - store auth data using service
+      recyclerAuthService.storeAuthData(data.data);
       
+      // Add small delay to ensure localStorage is fully updated
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      console.log('Auth stored successfully, navigating to dashboard');
       navigate('/recycler/dashboard');
     } catch (err: any) {
       setError(err.message || 'Invalid OTP. Please try again.');
@@ -129,7 +131,7 @@ const RecyclerOTP: React.FC = () => {
     setError('');
     
     try {
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/auth/recycler/send-otp`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/auth/recycler/send-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -1,29 +1,33 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Plus, Edit2, Trash2, X, Save, FileText, Calendar, Tag, Eye } from 'lucide-react';
+import { LogOut, Plus, Edit2, Trash2, X, Save, FileText, Calendar, Tag, Eye, Loader2, AlertCircle } from 'lucide-react';
 import AdminSidebar from '../../components/AdminSidebar';
+import Pagination from '../../components/Pagination';
+import { adminAPI } from '../../services/api';
 
 type TabType = 'blogs' | 'faqs';
 
 interface BlogPost {
-  id: string;
+  _id: string;
   title: string;
   slug: string;
   excerpt: string;
   content: string;
   category: string;
   author: string;
-  publishedDate: string;
+  publishedAt?: string;
   status: 'draft' | 'published';
-  featuredImage?: string;
+  image?: string;
+  createdAt: string;
 }
 
 interface FAQ {
-  id: string;
+  _id: string;
   question: string;
   answer: string;
   category: string;
   order: number;
+  status: 'active' | 'inactive';
 }
 
 const ContentManagement: React.FC = () => {
@@ -32,103 +36,96 @@ const ContentManagement: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [modalType, setModalType] = useState<'add' | 'edit'>('add');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    pages: 0,
+  });
 
   const handleLogout = () => {
-    localStorage.removeItem('adminAuth');
-    localStorage.removeItem('adminEmail');
+    sessionStorage.removeItem('adminAuth');
+    sessionStorage.removeItem('adminEmail');
+    sessionStorage.removeItem('adminToken');
     navigate('/panel/login');
   };
 
-  // Mock blog posts data
-  const [blogPosts, setBlogPosts] = useState<BlogPost[]>([
-    {
-      id: '1',
-      title: '5 Tips for Preparing Your Phone for Recycling',
-      slug: '5-tips-preparing-phone-recycling',
-      excerpt: 'Learn the essential steps to prepare your device before recycling it safely and securely.',
-      content: 'Full blog content here...',
-      category: 'Recycling Tips',
-      author: 'Admin',
-      publishedDate: '2026-02-10',
-      status: 'published',
-      featuredImage: 'https://images.unsplash.com/photo-1556656793-08538906a9f8?w=800',
-    },
-    {
-      id: '2',
-      title: 'iPhone 15 Pro Max: Is It Worth Upgrading?',
-      slug: 'iphone-15-pro-max-worth-upgrading',
-      excerpt: 'A comprehensive review of Apple\'s latest flagship and whether you should upgrade from older models.',
-      content: 'Full blog content here...',
-      category: 'Device Reviews',
-      author: 'Admin',
-      publishedDate: '2026-02-08',
-      status: 'published',
-      featuredImage: 'https://images.unsplash.com/photo-1592286927505-b0b2a1f2b5f7?w=800',
-    },
-    {
-      id: '3',
-      title: 'The Environmental Impact of E-Waste',
-      slug: 'environmental-impact-e-waste',
-      excerpt: 'Understanding how electronic waste affects our planet and what you can do to help.',
-      content: 'Full blog content here...',
-      category: 'Sustainability',
-      author: 'Admin',
-      publishedDate: '2026-02-05',
-      status: 'published',
-      featuredImage: 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?w=800',
-    },
-    {
-      id: '4',
-      title: 'Samsung Galaxy S24 Ultra vs iPhone 15 Pro Max',
-      slug: 'samsung-galaxy-s24-vs-iphone-15',
-      excerpt: 'Which flagship smartphone offers the best value for your money? We compare the top contenders.',
-      content: 'Full blog content here...',
-      category: 'Device Reviews',
-      author: 'Admin',
-      publishedDate: '2026-01-28',
-      status: 'draft',
-    },
-  ]);
+  // State for blogs and FAQs
+  const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
 
-  // Mock FAQs data - collected from FAQs.tsx
-  const [faqs, setFaqs] = useState<FAQ[]>([
-    // Getting Started
-    { id: '1', question: 'How does Recycle My Device work?', answer: "We're a comparison website that helps you find the best price for your old phone. Simply search for your device, tell us its condition, and we'll show you quotes from multiple trusted UK recyclers. Choose the best offer, complete your order, and send your phone using the free postage label. Once received, you'll get paid directly to your bank account.", category: 'Getting Started', order: 1 },
-    { id: '2', question: 'Is it free to use Recycle My Device?', answer: "Absolutely! Our service is completely free to use. We earn a small commission from our partner recyclers when you complete a sale, but this never affects the price you receive. There are no hidden fees or costs to you.", category: 'Getting Started', order: 2 },
-    { id: '3', question: 'Which devices can I sell?', answer: "You can sell most smartphones including all iPhone models (from iPhone 6 onwards), Samsung Galaxy devices, and other popular brands. We also accept tablets and smartwatches. If you can't find your device, contact us and we'll try to help.", category: 'Getting Started', order: 3 },
-    { id: '4', question: "How do I know I'm getting the best price?", answer: "We compare prices from over 20 trusted UK recyclers in real-time. Our comparison tool shows you all available offers so you can choose the one that suits you best - whether that's the highest price, fastest payment, or most trusted buyer.", category: 'Getting Started', order: 4 },
-    
-    // Device Condition
-    { id: '5', question: "How do I determine my device's condition?", answer: "We have 5 condition grades: Like New (perfect, no signs of use), Good (minor scratches, fully working), Fair (visible wear but functional), Poor (heavy wear or minor damage), and Faulty (broken screen, battery issues, etc.). Be honest - if your device doesn't match the condition you selected, the buyer may revise the price or return it.", category: 'Device Condition', order: 1 },
-    { id: '6', question: 'What if my phone has a cracked screen?', answer: "Cracked screens are usually classified as 'Faulty' or 'Poor' condition. You can still sell devices with cracked screens, but the price will be lower. Some buyers specialise in damaged devices, so you might be surprised at what you can still get!", category: 'Device Condition', order: 2 },
-    { id: '7', question: 'Does my phone need to be working to sell it?', answer: "No! Many buyers accept non-working or faulty devices. Just select 'Faulty' as the condition and describe what's wrong. You'll still get quotes - just at a reduced price.", category: 'Device Condition', order: 3 },
-    { id: '8', question: 'What happens if the buyer disagrees with my condition assessment?', answer: "If the buyer inspects your device and finds it's in worse condition than described, they'll offer you a revised price. You can accept the new offer or ask for your device to be returned (you may need to pay return postage). That's why it's important to be honest upfront!", category: 'Device Condition', order: 4 },
-    
-    // Selling Process
-    { id: '9', question: 'What do I need to do before sending my phone?', answer: 'Before sending your device, you should: 1) Back up your data, 2) Sign out of all accounts (iCloud, Google, Samsung), 3) Disable Find My iPhone/Android, 4) Remove your SIM and memory cards, 5) Perform a factory reset. This protects your privacy and ensures smooth processing.', category: 'Selling Process', order: 1 },
-    { id: '10', question: 'How do I send my phone?', answer: "After completing your order, you'll receive a FREE prepaid shipping label by email. Print it out, pack your phone securely (we recommend bubble wrap), attach the label, and drop it off at any Royal Mail location or collection point. Keep your proof of postage!", category: 'Selling Process', order: 2 },
-    { id: '11', question: 'Is postage really free?', answer: "Yes! All orders include a free prepaid Royal Mail shipping label. You don't pay anything to send your device. Just print the label and drop it off.", category: 'Selling Process', order: 3 },
-    { id: '12', question: 'Can I sell multiple phones at once?', answer: "Yes! You can add multiple devices to your order. Each device will need to be assessed and may go to different buyers depending on who offers the best price for each one.", category: 'Selling Process', order: 4 },
-    { id: '13', question: 'How long does the process take?', answer: 'The whole process typically takes 5-7 days: 1-2 days for your device to arrive, 1-2 days for inspection, and 1-3 days for payment to reach your account. Some buyers offer same-day payment!', category: 'Selling Process', order: 5 },
-    
-    // Payment
-    { id: '14', question: 'How do I get paid?', answer: "Payment is sent directly to your UK bank account. When you place your order, you'll need to provide your bank details (account name, sort code, and account number). All major UK banks are supported.", category: 'Payment', order: 1 },
-    { id: '15', question: 'How long does payment take?', answer: "Most buyers pay within 1-3 working days of receiving and inspecting your device. Some offer same-day payment! The payment speed is shown on each buyer's offer so you know what to expect.", category: 'Payment', order: 2 },
-    { id: '16', question: 'Is my payment guaranteed?', answer: "Your payment is guaranteed based on the condition of your device. If it matches your description, you'll receive the quoted price. If there's a discrepancy, the buyer will offer a revised price which you can accept or decline.", category: 'Payment', order: 3 },
-    { id: '17', question: "What if I don't receive payment?", answer: "All our partner buyers are vetted and trusted. If you experience any issues with payment, contact us immediately with your order number and we'll help resolve it. That's why we recommend keeping your postage receipt until payment is confirmed.", category: 'Payment', order: 4 },
-    
-    // Security & Data
-    { id: '18', question: 'Is my personal data safe?', answer: 'Yes. All buyers securely wipe devices before processing, permanently erasing all personal data. However, we strongly recommend doing a factory reset yourself before sending, just to be safe. Your order information is protected and only shared with your chosen buyer.', category: 'Security & Data', order: 1 },
-    { id: '19', question: 'What happens to my old phone?', answer: "Depending on condition, your phone will either be refurbished and resold, recycled for parts, or responsibly disposed of following UK environmental regulations. Nothing goes to landfill - it's all about sustainability!", category: 'Security & Data', order: 2 },
-    { id: '20', question: 'Are the buyers trustworthy?', answer: 'All buyers on our platform are vetted UK companies with established track records. We display their Trustpilot ratings and reviews so you can make an informed choice. We only work with reputable, reliable recyclers.', category: 'Security & Data', order: 3 },
-    { id: '21', question: 'Is my bank information secure?', answer: 'Your bank details are encrypted and transmitted securely. We use industry-standard security measures to protect your information. Bank details are only used to process your payment and are not stored longer than necessary.', category: 'Security & Data', order: 4 },
-    
-    // Problems & Returns
-    { id: '22', question: 'What if I change my mind?', answer: "If you haven't sent your device yet, simply don't use the shipping label - there's no obligation. If you've already sent it and the buyer hasn't processed it yet, contact them directly to request its return.", category: 'Problems & Returns', order: 1 },
-    { id: '23', question: 'What if my phone gets lost in the post?', answer: "All shipments are tracked. If your device doesn't arrive, contact us with your tracking number and proof of postage. We'll work with Royal Mail and the buyer to resolve the issue. That's why keeping your receipt is important!", category: 'Problems & Returns', order: 2 },
-    { id: '24', question: 'The buyer offered a lower price than quoted. What can I do?', answer: 'If the buyer\'s inspection finds issues not mentioned in your original description, they may offer a revised price. You can accept it, negotiate, or request your device back (return postage may apply). Always be accurate about condition to avoid surprises.', category: 'Problems & Returns', order: 3 },
-    { id: '25', question: 'How do I contact customer support?', answer: 'You can reach us by email at support@recyclemydevice.co.uk, by phone at 0330 123 4567 (Mon-Fri 9am-6pm), or through our contact form. We aim to respond within 24 hours.', category: 'Problems & Returns', order: 4 },
-  ]);
+  const [faqs, setFaqs] = useState<FAQ[]>([]);
+
+  // Fetch blogs from backend
+  const fetchBlogs = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const params = {
+        page: pagination.page,
+        limit: pagination.limit,
+      };
+      const response: any = await adminAPI.blogs.getAll(params);
+      if (response.success) {
+        setBlogPosts(response.data || []);
+        if (response.pagination) {
+          setPagination(prev => ({
+            ...prev,
+            total: response.pagination.total,
+            pages: response.pagination.pages,
+          }));
+        }
+      }
+    } catch (err: any) {
+      console.error('Error fetching blogs:', err);
+      setError(err.message || 'Failed to fetch blogs');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch FAQs from backend
+  const fetchFAQs = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const params = {
+        page: pagination.page,
+        limit: pagination.limit,
+      };
+      const response: any = await adminAPI.faqs.getAll(params);
+      if (response.success) {
+        setFaqs(response.data || []);
+        if (response.pagination) {
+          setPagination(prev => ({
+            ...prev,
+            total: response.pagination.total,
+            pages: response.pagination.pages,
+          }));
+        }
+      }
+    } catch (err: any) {
+      console.error('Error fetching FAQs:', err);
+      setError(err.message || 'Failed to fetch FAQs');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch data on component mount and tab change
+  useEffect(() => {
+    // Reset to page 1 when switching tabs
+    setPagination(prev => ({ ...prev, page: 1 }));
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'blogs') {
+      fetchBlogs();
+    } else {
+      fetchFAQs();
+    }
+  }, [activeTab, pagination.page]);
 
   const [formData, setFormData] = useState<any>({});
 
@@ -152,40 +149,63 @@ const ContentManagement: React.FC = () => {
     setFormData({});
   };
 
-  const handleSave = () => {
-    if (modalType === 'add') {
-      const newItem = { ...formData, id: Date.now().toString() };
-      if (activeTab === 'blogs') {
-        if (!formData.slug) {
-          newItem.slug = formData.title?.toLowerCase().replace(/\s+/g, '-') || '';
+  const handleSave = async () => {
+    try {
+      if (modalType === 'add') {
+        if (activeTab === 'blogs') {
+          const response: any = await adminAPI.blogs.create(formData);
+          if (response.success) {
+            await fetchBlogs();
+            alert('Blog created successfully!');
+          }
+        } else {
+          const response: any = await adminAPI.faqs.create(formData);
+          if (response.success) {
+            await fetchFAQs();
+            alert('FAQ created successfully!');
+          }
         }
-        setBlogPosts([...blogPosts, newItem]);
       } else {
-        setFaqs([...faqs, newItem]);
+        if (activeTab === 'blogs') {
+          const response: any = await adminAPI.blogs.update(editingItem._id, formData);
+          if (response.success) {
+            await fetchBlogs();
+            alert('Blog updated successfully!');
+          }
+        } else {
+          const response: any = await adminAPI.faqs.update(editingItem._id, formData);
+          if (response.success) {
+            await fetchFAQs();
+            alert('FAQ updated successfully!');
+          }
+        }
       }
-    } else {
-      if (activeTab === 'blogs') {
-        setBlogPosts(blogPosts.map(item => item.id === editingItem.id ? formData : item));
-      } else {
-        setFaqs(faqs.map(item => item.id === editingItem.id ? formData : item));
-      }
+      closeModal();
+    } catch (err: any) {
+      console.error('Error saving:', err);
+      alert(err.message || 'Failed to save');
     }
-    closeModal();
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!window.confirm('Are you sure you want to delete this item?')) return;
     
-    if (activeTab === 'blogs') {
-      setBlogPosts(blogPosts.filter(item => item.id !== id));
-    } else {
-      setFaqs(faqs.filter(item => item.id !== id));
+    try {
+      if (activeTab === 'blogs') {
+        await adminAPI.blogs.delete(id);
+        await fetchBlogs();
+        alert('Blog deleted successfully!');
+      } else {
+        await adminAPI.faqs.delete(id);
+        await fetchFAQs();
+        alert('FAQ deleted successfully!');
+      }
+    } catch (err: any) {
+      console.error('Error deleting:', err);
+      alert(err.message || 'Failed to delete');
     }
   };
 
-  const getCurrentData = () => {
-    return activeTab === 'blogs' ? blogPosts : faqs;
-  };
 
   const getTabTitle = () => {
     return activeTab === 'blogs' ? 'Blog Posts' : 'FAQs';
@@ -323,18 +343,35 @@ const ContentManagement: React.FC = () => {
                   </button>
                 </div>
 
+                {/* Loading State */}
+                {loading && (
+                  <div className="flex justify-center items-center py-12">
+                    <Loader2 className="w-12 h-12 text-[#1b981b] animate-spin" />
+                  </div>
+                )}
+
+                {/* Error State */}
+                {error && !loading && (
+                  <div className="bg-red-50 border-2 border-red-200 rounded-xl p-6 text-center">
+                    <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-3" />
+                    <p className="text-red-800 font-semibold mb-2">Failed to load {activeTab}</p>
+                    <p className="text-red-600 text-sm">{error}</p>
+                  </div>
+                )}
+
                 {/* Items List */}
-                <div className="space-y-4">
-                  {activeTab === 'blogs' ? (
+                {!loading && !error && (
+                  <div className="space-y-4">
+                    {activeTab === 'blogs' ? (
                     // Blog Posts List
                     blogPosts.map((blog) => (
                       <div
-                        key={blog.id}
+                        key={blog._id}
                         className="flex items-start gap-4 p-4 border-2 border-gray-200 rounded-xl hover:border-[#1b981b] hover:shadow-md transition-all duration-200"
                       >
-                        {blog.featuredImage && (
+                        {blog.image && (
                           <img 
-                            src={blog.featuredImage} 
+                            src={blog.image} 
                             alt={blog.title}
                             className="w-24 h-24 rounded-lg object-cover flex-shrink-0"
                           />
@@ -356,14 +393,14 @@ const ContentManagement: React.FC = () => {
                                 </div>
                                 <div className="flex items-center gap-1">
                                   <Calendar className="w-3 h-3" />
-                                  <span>{blog.publishedDate}</span>
+                                  <span>{blog.publishedAt ? new Date(blog.publishedAt).toLocaleDateString() : 'Not published'}</span>
                                 </div>
                                 <span>by {blog.author}</span>
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
                               <button
-                                onClick={() => navigate(`/panel/blog/edit/${blog.id}`)}
+                                onClick={() => navigate(`/panel/blog/edit/${blog._id}`)}
                                 className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200"
                                 title="Edit"
                               >
@@ -376,7 +413,7 @@ const ContentManagement: React.FC = () => {
                                 <Eye className="w-5 h-5" />
                               </button>
                               <button
-                                onClick={() => handleDelete(blog.id)}
+                                onClick={() => handleDelete(blog._id)}
                                 className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
                                 title="Delete"
                               >
@@ -396,7 +433,7 @@ const ContentManagement: React.FC = () => {
                       return a.order - b.order;
                     }).map((faq) => (
                       <div
-                        key={faq.id}
+                        key={faq._id}
                         className="p-4 border-2 border-gray-200 rounded-xl hover:border-[#1b981b] hover:shadow-md transition-all duration-200"
                       >
                         <div className="flex items-start justify-between gap-4">
@@ -418,7 +455,7 @@ const ContentManagement: React.FC = () => {
                               <Edit2 className="w-5 h-5" />
                             </button>
                             <button
-                              onClick={() => handleDelete(faq.id)}
+                              onClick={() => handleDelete(faq._id)}
                               className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
                             >
                               <Trash2 className="w-5 h-5" />
@@ -428,7 +465,8 @@ const ContentManagement: React.FC = () => {
                       </div>
                     ))
                   )}
-                </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

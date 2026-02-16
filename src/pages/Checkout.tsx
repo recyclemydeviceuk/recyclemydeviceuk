@@ -161,7 +161,7 @@ export default function Checkout() {
                   </div>
                 </div>
                 <div className="flex items-center space-x-4">
-                  <span className="text-2xl font-bold text-primary">£{cartItem.price}</span>
+                  <span className="text-2xl font-bold text-primary">£{Math.round(cartItem.price)}</span>
                   <button
                     onClick={handleRemoveDevice}
                     className="text-red-500 hover:text-red-700 flex items-center space-x-1"
@@ -416,7 +416,7 @@ export default function Checkout() {
               <div className="border-t border-b py-4 mb-4 space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Device Value</span>
-                  <span className="font-semibold text-gray-900">£{cartItem.price}</span>
+                  <span className="font-semibold text-gray-900">£{Math.round(cartItem.price)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Postage</span>
@@ -427,7 +427,7 @@ export default function Checkout() {
               {/* Total */}
               <div className="flex justify-between items-center mb-6">
                 <span className="text-lg font-bold text-gray-900">You'll Receive</span>
-                <span className="text-3xl font-bold text-primary">£{cartItem.price}</span>
+                <span className="text-3xl font-bold text-primary">£{Math.round(cartItem.price)}</span>
               </div>
 
               {/* Benefits */}

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
+import { adminAPI } from '../services/api';
 
 const AdminOTP: React.FC = () => {
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
@@ -85,31 +86,44 @@ const AdminOTP: React.FC = () => {
     setError('');
 
     try {
-      // Call backend API to verify OTP
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/auth/admin/verify-otp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          email: email.trim(), 
-          otp: otpCode 
-        }),
-      });
+      // Call backend API to verify OTP using adminAPI service
+      console.log('Verifying OTP for email:', email);
+      const response: any = await adminAPI.auth.verifyOTP(email.trim(), otpCode);
+      console.log('OTP verification response:', response);
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Invalid OTP');
+      // Handle different response structures
+      const responseData = response.data || response;
+      
+      if (!response.success && !responseData.token) {
+        throw new Error(response.message || 'Invalid OTP');
       }
 
-      // Success - store auth token and navigate
-      localStorage.setItem('adminToken', data.data.token);
-      localStorage.setItem('adminEmail', data.data.admin.email);
-      localStorage.setItem('adminAuth', 'true');
+      // Extract token data - handle both nested and flat structures
+      const token = responseData.token || response.token;
+      const sessionToken = responseData.sessionToken || response.sessionToken;
+      const adminData = responseData.admin || response.admin;
+
+      console.log('Extracted token data:', { 
+        hasToken: !!token, 
+        hasSessionToken: !!sessionToken, 
+        hasAdmin: !!adminData 
+      });
+
+      if (!token || !sessionToken) {
+        throw new Error('Invalid response from server - missing tokens');
+      }
+
+      // Success - store session data in sessionStorage (not localStorage for security)
+      sessionStorage.setItem('adminToken', token);
+      sessionStorage.setItem('sessionToken', sessionToken);
+      sessionStorage.setItem('adminEmail', adminData?.email || email);
+      sessionStorage.setItem('adminAuth', 'true');
+      
+      console.log('Session data stored successfully');
       
       navigate('/panel');
     } catch (err: any) {
+      console.error('OTP verification error:', err);
       setError(err.message || 'Invalid OTP. Please try again.');
       setOtp(['', '', '', '', '', '']);
       inputRefs.current[0]?.focus();
@@ -127,24 +141,22 @@ const AdminOTP: React.FC = () => {
     setError('');
     
     try {
-      // Call backend API to resend OTP
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/auth/admin/send-otp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email: email.trim() }),
-      });
+      // Call backend API to resend OTP using adminAPI service
+      console.log('Resending OTP for email:', email);
+      const response: any = await adminAPI.auth.resendOTP(email.trim());
+      console.log('Resend OTP response:', response);
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to resend OTP');
+      // Handle different response structures
+      const success = response.success || response.data?.success;
+      
+      if (!success) {
+        throw new Error(response.message || response.data?.message || 'Failed to resend OTP');
       }
 
       // Success - focus first input
       inputRefs.current[0]?.focus();
     } catch (err: any) {
+      console.error('Resend OTP error:', err);
       setError(err.message || 'Failed to resend OTP. Please try again.');
       setCanResend(true);
       setResendTimer(0);

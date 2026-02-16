@@ -331,7 +331,7 @@ export default function Hero() {
                         <p className="text-[9px] sm:text-[10px] text-gray-500">Same day payment</p>
                       </div>
                     </div>
-                    <div className="text-xl sm:text-2xl font-bold text-primary flex-shrink-0">£{featuredPrices[0].price}</div>
+                    <div className="text-xl sm:text-2xl font-bold text-primary flex-shrink-0">£{Math.round(featuredPrices[0].price)}</div>
                   </div>
 
                   {/* Second Best Offer */}
@@ -354,7 +354,7 @@ export default function Hero() {
                           <p className="text-[9px] sm:text-[10px] text-gray-500">1-2 day payment</p>
                         </div>
                       </div>
-                      <div className="text-xl sm:text-2xl font-bold text-gray-900 flex-shrink-0">£{featuredPrices[1].price}</div>
+                      <div className="text-xl sm:text-2xl font-bold text-gray-900 flex-shrink-0">£{Math.round(featuredPrices[1].price)}</div>
                     </div>
                   )}
                 </>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, User, Package, MapPin, Phone, Mail, Calendar, Edit2, Save, X } from 'lucide-react';
 import AdminSidebar from '../../components/AdminSidebar';
+import { adminAPI } from '../../services/api';
 
 interface OrderDetails {
   id: string;
@@ -27,39 +28,61 @@ const OrderDetailsPage: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [orderData, setOrderData] = useState<OrderDetails | null>(null);
   const [editData, setEditData] = useState<OrderDetails | null>(null);
+  const [orderStatuses, setOrderStatuses] = useState<any[]>([]);
+  const [paymentStatuses, setPaymentStatuses] = useState<any[]>([]);
 
   useEffect(() => {
-    // TODO: Replace with actual API call
-    const loadOrderData = async () => {
+    const loadData = async () => {
+      if (!id) return;
+      
       try {
-        // Mock data
-        const mockOrder: OrderDetails = {
-          id: id || '1',
-          orderNumber: 'ORD-2026-001',
-          customerName: 'John Smith',
-          customerEmail: 'john.smith@email.com',
-          customerPhone: '+44 7700 900123',
-          device: 'iPhone 15 Pro Max',
-          condition: 'Excellent',
-          offerPrice: 750,
-          recycler: 'GreenTech Recyclers',
-          status: 'confirmed',
-          paymentStatus: 'paid',
-          createdAt: '2026-02-10',
-          address: '123 High Street, London, UK, SW1A 1AA',
-          notes: 'Customer requested collection on weekday afternoon. Device includes original box and accessories.'
-        };
+        // Fetch statuses and order data in parallel
+        const [orderRes, orderStatusRes, paymentStatusRes]: any[] = await Promise.all([
+          adminAPI.orders.getById(id),
+          adminAPI.utilities.getOrderStatuses(),
+          adminAPI.utilities.getPaymentStatuses()
+        ]);
 
-        setOrderData(mockOrder);
-        setEditData(mockOrder);
+        // Set statuses
+        if (orderStatusRes.success) {
+          setOrderStatuses(orderStatusRes.data);
+        }
+        if (paymentStatusRes.success) {
+          setPaymentStatuses(paymentStatusRes.data);
+        }
+        
+        // Set order data
+        if (orderRes.success) {
+          const order = orderRes.data;
+          const formattedOrder: OrderDetails = {
+            id: order._id,
+            orderNumber: order.orderNumber,
+            customerName: order.customerName,
+            customerEmail: order.customerEmail,
+            customerPhone: order.customerPhone,
+            device: order.deviceId?.name || 'N/A',
+            condition: order.deviceCondition,
+            offerPrice: order.amount,
+            recycler: order.recyclerId?.companyName || 'Not Assigned',
+            status: order.status,
+            paymentStatus: order.paymentStatus,
+            createdAt: new Date(order.createdAt).toISOString().split('T')[0],
+            address: `${order.address || ''}, ${order.city || ''}, ${order.postcode || ''}`.trim(),
+            notes: order.notes || ''
+          };
+
+          setOrderData(formattedOrder);
+          setEditData(formattedOrder);
+        }
       } catch (error) {
         console.error('Error loading order:', error);
+        alert('Failed to load order details');
       } finally {
         setLoading(false);
       }
     };
 
-    loadOrderData();
+    loadData();
   }, [id]);
 
   const handleEdit = () => {
@@ -71,11 +94,23 @@ const OrderDetailsPage: React.FC = () => {
     setIsEditing(false);
   };
 
-  const handleSave = () => {
-    // TODO: API call to update order
-    console.log('Saving order:', editData);
-    setOrderData(editData);
-    setIsEditing(false);
+  const handleSave = async () => {
+    if (!editData || !id) return;
+    
+    try {
+      // Update order status
+      await adminAPI.orders.updateStatus(id, editData.status, editData.notes);
+      
+      // Update payment status
+      await adminAPI.orders.updatePaymentStatus(id, editData.paymentStatus);
+      
+      setOrderData(editData);
+      setIsEditing(false);
+      alert('Order updated successfully!');
+    } catch (error) {
+      console.error('Error saving order:', error);
+      alert('Failed to update order');
+    }
   };
 
   const handleInputChange = (field: keyof OrderDetails, value: any) => {
@@ -198,11 +233,11 @@ const OrderDetailsPage: React.FC = () => {
                       onChange={(e) => handleInputChange('status', e.target.value)}
                       className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1b981b] bg-white cursor-pointer"
                     >
-                      <option value="pending">Pending</option>
-                      <option value="confirmed">Confirmed</option>
-                      <option value="collected">Collected</option>
-                      <option value="completed">Completed</option>
-                      <option value="cancelled">Cancelled</option>
+                      {orderStatuses.map((status) => (
+                        <option key={status.name} value={status.name}>
+                          {status.label || status.name.charAt(0).toUpperCase() + status.name.slice(1)}
+                        </option>
+                      ))}
                     </select>
                   ) : (
                     <span className={`inline-flex px-4 py-2 rounded-full text-sm font-semibold border-2 ${getStatusColor(orderData.status)}`}>
@@ -224,9 +259,11 @@ const OrderDetailsPage: React.FC = () => {
                       onChange={(e) => handleInputChange('paymentStatus', e.target.value)}
                       className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1b981b] bg-white cursor-pointer"
                     >
-                      <option value="pending">Pending</option>
-                      <option value="paid">Paid</option>
-                      <option value="failed">Failed</option>
+                      {paymentStatuses.map((status) => (
+                        <option key={status.name} value={status.name}>
+                          {status.label || status.name.charAt(0).toUpperCase() + status.name.slice(1)}
+                        </option>
+                      ))}
                     </select>
                   ) : (
                     <span className={`inline-flex px-4 py-2 rounded-full text-sm font-semibold ${getPaymentStatusColor(orderData.paymentStatus)}`}>
@@ -402,7 +439,7 @@ const OrderDetailsPage: React.FC = () => {
                       />
                     </div>
                   ) : (
-                    <p className="text-2xl font-bold text-[#1b981b]">£{orderData.offerPrice}</p>
+                    <p className="text-2xl font-bold text-[#1b981b]">£{Math.round(orderData.offerPrice)}</p>
                   )}
                 </div>
               </div>

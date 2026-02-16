@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   LogOut, 
@@ -27,6 +27,8 @@ import {
   FileText
 } from 'lucide-react';
 import AdminSidebar from '../../components/AdminSidebar';
+import Pagination from '../../components/Pagination';
+import { adminAPI } from '../../services/api';
 
 interface RecyclerMetric {
   id: string;
@@ -41,6 +43,7 @@ interface RecyclerMetric {
   growthRate: number;
   topBrands: string[];
   rating: number;
+  reviewCount: number;
   businessStatus: string;
   businessActive: boolean;
   logo?: string;
@@ -57,166 +60,89 @@ const RecyclerMetrics: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [selectedRecycler, setSelectedRecycler] = useState<RecyclerMetric | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [showReasonModal, setShowReasonModal] = useState(false);
+  const [actionType, setActionType] = useState<'disable' | 'enable'>('disable');
+  const [reason, setReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [recyclerMetrics, setRecyclerMetrics] = useState<RecyclerMetric[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [overview, setOverview] = useState({ totalRevenue: 0, totalOrders: 0, totalCustomers: 0, averageRating: 0 });
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    pages: 0,
+  });
+
+  useEffect(() => {
+    loadRecyclerMetrics();
+  }, [searchQuery, statusFilter, pagination.page]);
+
+  const loadRecyclerMetrics = async () => {
+    try {
+      setLoading(true);
+      const params: any = {
+        page: pagination.page,
+        limit: pagination.limit,
+      };
+      if (searchQuery) params.search = searchQuery;
+      if (statusFilter !== 'all') params.status = statusFilter;
+      
+      const response: any = await adminAPI.metrics.getRecyclers(params);
+      setRecyclerMetrics(response.data.metrics || []);
+      setOverview(response.data.overview || { totalRevenue: 0, totalOrders: 0, totalCustomers: 0, averageRating: 0 });
+      
+      if (response.pagination) {
+        setPagination(prev => ({
+          ...prev,
+          total: response.pagination.total,
+          pages: response.pagination.pages,
+        }));
+      }
+    } catch (error) {
+      console.error('Error loading recycler metrics:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('adminAuth');
     localStorage.removeItem('adminEmail');
+    sessionStorage.removeItem('adminToken');
+    sessionStorage.removeItem('sessionToken');
     navigate('/panel/login');
   };
 
-  // Mock recycler metrics data
-  const recyclerMetrics: RecyclerMetric[] = [
-    {
-      id: '1',
-      companyName: 'PhoneReborn Industries',
-      contactPerson: 'Jessica Lee',
-      status: 'active',
-      totalCustomers: 145,
-      totalDevicesPurchased: 287,
-      totalSpent: 42580,
-      averageDevicePrice: 148.36,
-      lastPurchaseDate: '2026-02-10',
-      growthRate: 15.5,
-      rating: 4.8,
-      topBrands: ['Apple', 'Samsung', 'Google'],
-      businessStatus: 'Currently accepting new orders',
-      businessActive: true,
-      email: 'contact@phonereborn.com',
-      phone: '+44 20 7946 0123',
-      address: '128 Tech Park, London, W1T 2AB, United Kingdom',
-      description: 'Premier electronics recycling partner with 10+ years of experience in sustainable device management and refurbishment services.',
-      sellingPoints: [
-        'ISO Certified Recycling Process',
-        'Free Collection Nationwide',
-        '24-Hour Payment Guarantee'
-      ]
-    },
-    {
-      id: '2',
-      companyName: 'EcoTech Recyclers Ltd',
-      contactPerson: 'Robert Johnson',
-      status: 'active',
-      totalCustomers: 98,
-      totalDevicesPurchased: 176,
-      totalSpent: 28940,
-      averageDevicePrice: 164.43,
-      lastPurchaseDate: '2026-02-09',
-      growthRate: 8.2,
-      rating: 4.6,
-      topBrands: ['Apple', 'Microsoft', 'HP'],
-      businessStatus: 'Currently accepting new orders',
-      businessActive: true,
-      email: 'contact@ecotech-recyclers.com',
-      phone: '+44 20 7946 0958',
-      address: '45 Green Street, London, E1 7LB, United Kingdom',
-      description: 'Leading sustainable electronics recycling partner committed to environmental responsibility and data security. We specialize in responsible device refurbishment and recycling.',
-      sellingPoints: [
-        'Certified Data Destruction & Security',
-        'Same-Day Device Collection Service',
-        'Competitive Pricing & Fast Payments'
-      ]
-    },
-    {
-      id: '3',
-      companyName: 'GreenTech Solutions',
-      contactPerson: 'Sarah Martinez',
-      status: 'active',
-      totalCustomers: 124,
-      totalDevicesPurchased: 215,
-      totalSpent: 35670,
-      averageDevicePrice: 165.91,
-      lastPurchaseDate: '2026-02-11',
-      growthRate: 22.3,
-      rating: 4.9,
-      topBrands: ['Samsung', 'Google', 'OnePlus'],
-      businessStatus: 'Currently accepting new orders',
-      businessActive: true,
-      email: 'hello@greentech-solutions.co.uk',
-      phone: '+44 20 7946 0755',
-      address: '89 Innovation Way, Birmingham, B3 2JH, United Kingdom',
-      description: 'Award-winning electronics recycling company specializing in sustainable practices and community engagement programs.',
-      sellingPoints: [
-        'Carbon-Neutral Operations',
-        'Community Recycling Programs',
-        'Premium Device Valuations'
-      ]
-    },
-    {
-      id: '4',
-      companyName: 'CircularTech Partners',
-      contactPerson: 'Michael Chen',
-      status: 'active',
-      totalCustomers: 89,
-      totalDevicesPurchased: 142,
-      totalSpent: 23180,
-      averageDevicePrice: 163.24,
-      lastPurchaseDate: '2026-02-08',
-      growthRate: 5.7,
-      rating: 4.5,
-      topBrands: ['Apple', 'Samsung', 'Huawei'],
-      businessStatus: 'Currently accepting new orders',
-      businessActive: true,
-      email: 'info@circulartech.com',
-      phone: '+44 161 850 4321',
-      address: '56 Circular Economy Blvd, Manchester, M2 5DB, United Kingdom',
-      description: 'Innovative circular economy specialists focused on device lifecycle management and sustainable technology solutions.',
-      sellingPoints: [
-        'Extended Warranty Options',
-        'Corporate Recycling Programs',
-        'Transparent Pricing Model'
-      ]
-    },
-    {
-      id: '5',
-      companyName: 'Renewal Electronics',
-      contactPerson: 'Emma Wilson',
-      status: 'active',
-      totalCustomers: 67,
-      totalDevicesPurchased: 98,
-      totalSpent: 16240,
-      averageDevicePrice: 165.71,
-      lastPurchaseDate: '2026-02-07',
-      growthRate: -3.4,
-      rating: 4.3,
-      topBrands: ['Apple', 'Dell', 'Lenovo'],
-      businessStatus: 'Currently accepting new orders',
-      businessActive: true,
-      email: 'contact@renewal-electronics.co.uk',
-      phone: '+44 113 496 0234',
-      address: '22 Renewal Street, Leeds, LS1 4AP, United Kingdom',
-      description: 'Trusted electronics partner with focus on computer and laptop recycling. Family-owned business serving customers since 2015.',
-      sellingPoints: [
-        'Laptop Recycling Specialists',
-        'Free Postal Service',
-        'Same-Week Payments'
-      ]
-    },
-    {
-      id: '6',
-      companyName: 'Urban Recycle Hub',
-      contactPerson: 'David Thompson',
-      status: 'inactive',
-      totalCustomers: 45,
-      totalDevicesPurchased: 72,
-      totalSpent: 9860,
-      averageDevicePrice: 136.94,
-      lastPurchaseDate: '2026-01-15',
-      growthRate: -12.5,
-      rating: 3.9,
-      topBrands: ['Samsung', 'Huawei', 'Xiaomi'],
-      businessStatus: 'Temporarily not accepting orders',
-      businessActive: false,
-      email: 'support@urbanrecyclehub.com',
-      phone: '+44 20 7946 0666',
-      address: '78 Urban Plaza, Bristol, BS1 5NF, United Kingdom',
-      description: 'Urban-focused recycling service currently undergoing facility upgrades. Will resume operations shortly.',
-      sellingPoints: [
-        'Local Community Focus',
-        'Budget-Friendly Options',
-        'Flexible Collection Times'
-      ]
-    },
-  ];
+  const handleStatusChange = async () => {
+    if (!selectedRecycler || !reason.trim()) {
+      alert('Please provide a reason for this action');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      
+      const response: any = actionType === 'disable'
+        ? await adminAPI.recyclers.suspend(selectedRecycler.id, reason)
+        : await adminAPI.recyclers.activate(selectedRecycler.id, reason);
+
+      if (response?.success) {
+        alert(`Partner ${actionType === 'disable' ? 'disabled' : 'enabled'} successfully! Email sent to ${selectedRecycler.email}`);
+        setShowReasonModal(false);
+        setShowModal(false);
+        setReason('');
+        loadRecyclerMetrics();
+      }
+    } catch (error: any) {
+      console.error('Status change error:', error);
+      alert(error.response?.data?.message || `Failed to ${actionType} partner`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // All data now comes from backend API via adminAPI.metrics.getRecyclers()
 
   // Brand colors for visual variety
   const brandColors: Record<string, string> = {
@@ -232,27 +158,20 @@ const RecyclerMetrics: React.FC = () => {
     'Xiaomi': 'bg-orange-500 text-white'
   };
 
-  const filteredMetrics = recyclerMetrics.filter(metric => {
-    const matchesSearch = 
-      metric.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      metric.contactPerson.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || metric.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredMetrics = recyclerMetrics;
 
-  // Calculate aggregate stats
-  const totalCustomers = recyclerMetrics.reduce((sum, m) => sum + m.totalCustomers, 0);
-  const totalDevices = recyclerMetrics.reduce((sum, m) => sum + m.totalDevicesPurchased, 0);
-  const totalRevenue = recyclerMetrics.reduce((sum, m) => sum + m.totalSpent, 0);
-  const averagePrice = totalRevenue / totalDevices;
+  // Use backend overview stats
+  const totalCustomers = overview.totalCustomers || 0;
+  const totalDevices = overview.totalOrders || 0;
+  const totalRevenue = overview.totalRevenue || 0;
+  const averagePrice = totalDevices > 0 ? totalRevenue / totalDevices : 0;
   const activeRecyclers = recyclerMetrics.filter(m => m.status === 'active').length;
-
-  const avgRating = recyclerMetrics.reduce((sum, m) => sum + m.rating, 0) / recyclerMetrics.length;
+  const avgRating = overview.averageRating || 0;
 
   // Find top performer
-  const topPerformer = recyclerMetrics.reduce((prev, current) => 
-    prev.totalSpent > current.totalSpent ? prev : current
-  );
+  const topPerformer = recyclerMetrics.length > 0 
+    ? recyclerMetrics.reduce((prev, current) => prev.totalSpent > current.totalSpent ? prev : current)
+    : { companyName: 'N/A', totalSpent: 0 };
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -290,6 +209,15 @@ const RecyclerMetrics: React.FC = () => {
 
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto p-8">
+          {/* Loading State */}
+          {loading && (
+            <div className="flex justify-center items-center py-20">
+              <div className="w-16 h-16 border-4 border-[#1b981b] border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          )}
+
+          {!loading && (
+          <>
           <div className="max-w-7xl mx-auto">
             {/* Enhanced Aggregate Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-5 mb-8">
@@ -337,7 +265,7 @@ const RecyclerMetrics: React.FC = () => {
                     <DollarSign className="w-5 h-5 text-white" />
                   </div>
                   <p className="text-xs text-orange-100 font-medium mb-1">Total Spent</p>
-                  <p className="text-3xl font-bold text-white">£{totalRevenue.toLocaleString()}</p>
+                  <p className="text-3xl font-bold text-white">£{Math.floor(totalRevenue).toLocaleString()}</p>
                 </div>
               </div>
 
@@ -349,7 +277,7 @@ const RecyclerMetrics: React.FC = () => {
                     <TrendingUp className="w-5 h-5 text-white" />
                   </div>
                   <p className="text-xs text-pink-100 font-medium mb-1">Avg Price</p>
-                  <p className="text-3xl font-bold text-white">£{averagePrice.toFixed(0)}</p>
+                  <p className="text-3xl font-bold text-white">£{Math.floor(averagePrice)}</p>
                 </div>
               </div>
 
@@ -468,7 +396,7 @@ const RecyclerMetrics: React.FC = () => {
                           <DollarSign className="w-3.5 h-3.5 text-green-600" />
                           <p className="text-[10px] font-semibold text-green-600 uppercase tracking-wide">Spent</p>
                         </div>
-                        <p className="text-xl font-bold text-gray-800">£{(metric.totalSpent / 1000).toFixed(0)}k</p>
+                        <p className="text-xl font-bold text-gray-800">£{Math.floor(metric.totalSpent).toLocaleString()}</p>
                       </div>
 
                       <div className="bg-orange-50/80 rounded-2xl p-3 border border-orange-100">
@@ -477,8 +405,15 @@ const RecyclerMetrics: React.FC = () => {
                           <p className="text-[10px] font-semibold text-orange-600 uppercase tracking-wide">Rating</p>
                         </div>
                         <div className="flex items-center gap-1">
-                          <p className="text-xl font-bold text-gray-800">{metric.rating}</p>
-                          <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
+                          {metric.rating > 0 ? (
+                            <>
+                              <p className="text-xl font-bold text-gray-800">{metric.rating.toFixed(1)}</p>
+                              <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
+                              <p className="text-[10px] text-gray-500">({metric.reviewCount})</p>
+                            </>
+                          ) : (
+                            <p className="text-sm text-gray-500">No reviews</p>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -537,7 +472,6 @@ const RecyclerMetrics: React.FC = () => {
               </div>
             )}
           </div>
-        </main>
 
         {/* Business Details Modal */}
         {showModal && selectedRecycler && (
@@ -589,11 +523,9 @@ const RecyclerMetrics: React.FC = () => {
                       </div>
                       <button
                         onClick={() => {
-                          // TODO: Add confirmation dialog and API call
-                          alert(selectedRecycler.businessActive 
-                            ? `Are you sure you want to DISABLE ${selectedRecycler.companyName}? They will not be able to login.`
-                            : `Enable ${selectedRecycler.companyName}? They will be able to login again.`
-                          );
+                          setActionType(selectedRecycler.businessActive ? 'disable' : 'enable');
+                          setReason('');
+                          setShowReasonModal(true);
                         }}
                         className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all shadow-md hover:shadow-lg transform hover:scale-105 ${
                           selectedRecycler.businessActive
@@ -790,6 +722,99 @@ const RecyclerMetrics: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Pagination */}
+        {!loading && recyclerMetrics.length > 0 && pagination.pages > 1 && (
+          <div className="mt-6">
+            <Pagination
+              currentPage={pagination.page}
+              totalPages={pagination.pages}
+              totalItems={pagination.total}
+              itemsPerPage={pagination.limit}
+              onPageChange={(page) => setPagination(prev => ({ ...prev, page }))}
+            />
+          </div>
+        )}
+        </>
+        )}
+      </main>
+
+      {/* Reason Input Modal */}
+      {showReasonModal && selectedRecycler && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full animate-in slide-in-from-bottom-4 duration-300">
+            {/* Modal Header */}
+            <div className={`px-8 py-6 rounded-t-3xl ${actionType === 'disable' ? 'bg-gradient-to-r from-red-500 to-red-600' : 'bg-gradient-to-r from-green-500 to-green-600'}`}>
+              <h2 className="text-2xl font-bold text-white">
+                {actionType === 'disable' ? 'Disable Partner Account' : 'Enable Partner Account'}
+              </h2>
+              <p className="text-sm text-white/90 mt-1">
+                {actionType === 'disable' 
+                  ? 'This will prevent the partner from logging in'
+                  : 'This will allow the partner to access the system again'}
+              </p>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-8">
+              <div className="mb-6">
+                <p className="text-gray-700 mb-2">
+                  <strong>Partner:</strong> {selectedRecycler.companyName}
+                </p>
+                <p className="text-gray-700 mb-4">
+                  <strong>Email:</strong> {selectedRecycler.email}
+                </p>
+                <p className="text-sm text-gray-600 bg-yellow-50 border border-yellow-200 rounded-xl p-3">
+                  ⚠️ An email will be sent to the partner with your reason
+                </p>
+              </div>
+
+              <div className="mb-6">
+                <label className="block text-sm font-bold text-gray-800 mb-2">
+                  Reason <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder={actionType === 'disable' 
+                    ? 'e.g., Policy violation, suspicious activity, requested by partner...'
+                    : 'e.g., Issue resolved, verification complete, appeal approved...'}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                  rows={4}
+                  maxLength={500}
+                />
+                <p className="text-xs text-gray-500 mt-1">{reason.length}/500 characters</p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowReasonModal(false);
+                    setReason('');
+                  }}
+                  className="flex-1 px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold rounded-xl transition-all"
+                  disabled={submitting}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleStatusChange}
+                  disabled={!reason.trim() || submitting}
+                  className={`flex-1 px-6 py-3 font-bold rounded-xl transition-all ${
+                    actionType === 'disable'
+                      ? 'bg-red-500 hover:bg-red-600 text-white disabled:bg-red-300'
+                      : 'bg-green-500 hover:bg-green-600 text-white disabled:bg-green-300'
+                  } disabled:cursor-not-allowed`}
+                >
+                  {submitting ? 'Processing...' : actionType === 'disable' ? 'Disable Partner' : 'Enable Partner'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       </div>
     </div>
   );

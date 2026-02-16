@@ -2,11 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { adminAPI } from '../services/api';
 
-interface ProtectedRouteProps {
+interface ProtectedAdminRouteProps {
   children: React.ReactNode;
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
+const ProtectedAdminRoute: React.FC<ProtectedAdminRouteProps> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const location = useLocation();
@@ -17,7 +17,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
 
   const checkAuthentication = async () => {
     try {
-      // Check if session tokens exist in sessionStorage
+      // Check if session tokens exist
       const adminToken = sessionStorage.getItem('adminToken');
       const sessionToken = sessionStorage.getItem('sessionToken');
       const adminAuth = sessionStorage.getItem('adminAuth');
@@ -30,13 +30,13 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
 
       // Validate session with backend
       try {
-        console.log('Validating admin session with backend...');
-        const profileResponse = await adminAPI.auth.getProfile();
-        console.log('Profile validation response:', profileResponse);
+        await adminAPI.auth.getProfile();
         setIsAuthenticated(true);
       } catch (error: any) {
+        // Session invalid or expired
         console.error('Session validation failed:', error);
-        // Session invalid or expired - clear sessionStorage
+        
+        // Clear session storage
         sessionStorage.removeItem('adminToken');
         sessionStorage.removeItem('sessionToken');
         sessionStorage.removeItem('adminEmail');
@@ -70,4 +70,4 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   return <>{children}</>;
 };
 
-export default ProtectedRoute;
+export default ProtectedAdminRoute;

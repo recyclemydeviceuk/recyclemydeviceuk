@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useRecycler } from '../contexts/RecyclerContext';
 import { 
   LayoutDashboard,
   ShoppingBag,
@@ -17,6 +18,7 @@ interface MenuItem {
 
 const RecyclerSidebar: React.FC = () => {
   const location = useLocation();
+  const { partnerId, isLoading } = useRecycler();
 
   const menuItems: MenuItem[] = [
     {
@@ -97,7 +99,13 @@ const RecyclerSidebar: React.FC = () => {
       <div className="p-4 border-t border-gray-200 flex-shrink-0 mt-auto">
         <div className="bg-gradient-to-br from-[#1b981b]/10 to-[#157a15]/5 rounded-xl p-4 border border-[#1b981b]/20">
           <p className="text-xs font-semibold text-gray-700 mb-1">Partner ID</p>
-          <p className="text-sm font-mono font-bold text-[#1b981b]">RP-7881</p>
+          <p className="text-sm font-mono font-bold text-[#1b981b]">
+            {isLoading ? (
+              <span className="animate-pulse">Loading...</span>
+            ) : (
+              partnerId
+            )}
+          </p>
         </div>
       </div>
     </aside>

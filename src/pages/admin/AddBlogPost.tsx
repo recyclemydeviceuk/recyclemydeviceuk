@@ -28,6 +28,7 @@ import {
   Search
 } from 'lucide-react';
 import AdminSidebar from '../../components/AdminSidebar';
+import { adminAPI } from '../../services/api';
 
 interface BlogFormData {
   title: string;
@@ -127,12 +128,58 @@ const AddBlogPost: React.FC = () => {
     }));
   };
 
-  const handleSave = (status: 'draft' | 'published') => {
-    setFormData(prev => ({ ...prev, status }));
-    console.log('Saving blog post:', { ...formData, status });
-    // TODO: API call to save blog post
-    alert(`Blog post saved as ${status}!`);
-    navigate('/panel/content');
+  const handleSave = async (status: 'draft' | 'published') => {
+    // Validate required fields
+    if (!formData.title.trim()) {
+      alert('Please enter a blog title');
+      return;
+    }
+
+    if (!formData.content.trim()) {
+      alert('Please enter blog content');
+      return;
+    }
+
+    if (!formData.category) {
+      alert('Please select a category');
+      return;
+    }
+
+    try {
+      // Prepare blog data for API
+      const blogData: any = {
+        title: formData.title.trim(),
+        slug: formData.slug || formData.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+        excerpt: formData.excerpt.trim(),
+        content: formData.content.trim(),
+        category: formData.category,
+        author: formData.author || 'Admin',
+        status: status,
+        tags: formData.tags,
+      };
+
+      // Add image URL if available
+      if (formData.heroImageUrl) {
+        blogData.image = formData.heroImageUrl;
+      }
+
+      // Set published date if publishing
+      if (status === 'published') {
+        blogData.publishedAt = new Date().toISOString();
+      }
+
+      const response: any = await adminAPI.blogs.create(blogData);
+      
+      if (response.success) {
+        alert(`Blog post ${status === 'published' ? 'published' : 'saved as draft'} successfully!`);
+        navigate('/panel/content');
+      } else {
+        alert('Failed to save blog post');
+      }
+    } catch (error: any) {
+      console.error('Error saving blog post:', error);
+      alert(error.message || 'Failed to save blog post');
+    }
   };
 
   const insertTextFormat = (format: string) => {

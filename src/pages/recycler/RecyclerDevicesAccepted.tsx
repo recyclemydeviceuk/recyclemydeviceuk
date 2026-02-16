@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { recyclerAuthService } from '../../services/recyclerAuth';
+import { recyclerAPI } from '../../services/api';
 import { 
   LogOut, 
   Package, 
@@ -29,6 +31,7 @@ interface Device {
   model: string;
   image: string;
   storageOptions: string[];
+  conditionOptions: string[];
   selected: boolean;
   pricing: DevicePricing[];
   expanded: boolean;
@@ -37,8 +40,16 @@ interface Device {
 const RecyclerDevicesAccepted: React.FC = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [brandFilter, setBrandFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalDevices, setTotalDevices] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [loadingConfig, setLoadingConfig] = useState(true);
+  const [error, setError] = useState('');
   
   // Global storage and condition settings
   const [enabledStorage, setEnabledStorage] = useState<{[key: string]: boolean}>({
@@ -56,99 +67,288 @@ const RecyclerDevicesAccepted: React.FC = () => {
     'Faulty': true
   });
 
-  // Mock devices data
-  const [devices, setDevices] = useState<Device[]>([
-    {
-      id: 1,
-      brand: 'Apple',
-      model: 'iPhone 15 Pro Max',
-      image: 'https://via.placeholder.com/100',
-      storageOptions: ['128GB', '256GB', '512GB', '1TB'],
-      selected: false,
-      expanded: false,
-      pricing: []
-    },
-    {
-      id: 2,
-      brand: 'Apple',
-      model: 'iPhone 15 Pro',
-      image: 'https://via.placeholder.com/100',
-      storageOptions: ['128GB', '256GB', '512GB', '1TB'],
-      selected: false,
-      expanded: false,
-      pricing: []
-    },
-    {
-      id: 3,
-      brand: 'Apple',
-      model: 'iPhone 14 Pro Max',
-      image: 'https://via.placeholder.com/100',
-      storageOptions: ['128GB', '256GB', '512GB', '1TB'],
-      selected: false,
-      expanded: false,
-      pricing: []
-    },
-    {
-      id: 4,
-      brand: 'Samsung',
-      model: 'Galaxy S24 Ultra',
-      image: 'https://via.placeholder.com/100',
-      storageOptions: ['256GB', '512GB', '1TB'],
-      selected: false,
-      expanded: false,
-      pricing: []
-    },
-    {
-      id: 5,
-      brand: 'Samsung',
-      model: 'Galaxy S23 Ultra',
-      image: 'https://via.placeholder.com/100',
-      storageOptions: ['256GB', '512GB', '1TB'],
-      selected: false,
-      expanded: false,
-      pricing: []
-    },
-    {
-      id: 6,
-      brand: 'Google',
-      model: 'Pixel 8 Pro',
-      image: 'https://via.placeholder.com/100',
-      storageOptions: ['128GB', '256GB', '512GB'],
-      selected: false,
-      expanded: false,
-      pricing: []
-    },
-    {
-      id: 7,
-      brand: 'OnePlus',
-      model: 'OnePlus 12',
-      image: 'https://via.placeholder.com/100',
-      storageOptions: ['256GB', '512GB'],
-      selected: false,
-      expanded: false,
-      pricing: []
-    },
-    {
-      id: 8,
-      brand: 'Xiaomi',
-      model: 'Xiaomi 14 Pro',
-      image: 'https://via.placeholder.com/100',
-      storageOptions: ['256GB', '512GB', '1TB'],
-      selected: false,
-      expanded: false,
-      pricing: []
+  // Devices data from backend
+  const [devices, setDevices] = useState<Device[]>([]);
+
+  // Fetch devices from backend
+  useEffect(() => {
+    fetchDevices();
+  }, [debouncedSearchQuery, brandFilter, currentPage]);
+
+  const fetchDevices = async () => {
+    setIsLoading(true);
+    setError('');
+    try {
+      const params: any = {
+        page: currentPage,
+        limit: 20
+      };
+      
+      if (debouncedSearchQuery) params.search = debouncedSearchQuery;
+      if (brandFilter !== 'all') params.brand = brandFilter;
+      
+      const response = await recyclerAPI.devices.getAll(params);
+      
+      if (response?.data) {
+        const devicesData = Array.isArray(response.data) ? response.data : response.data.devices || [];
+        
+        // Transform backend data to match frontend interface
+        const transformedDevices = devicesData.map((device: any) => {
+          // Get image from various possible fields in backend
+          const deviceImage = device.image || 
+                            device.imageUrl || 
+                            device.deviceImage || 
+                            (device.images && device.images.length > 0 ? device.images[0] : null) ||
+                            (device.media && device.media.length > 0 ? device.media[0] : null) ||
+                            'https://storage.googleapis.com/atomjuice-product-images/apple/iphone-16-pro/default.png';
+          
+          // Extract storage options as strings
+          const storageOptions = (device.storageOptions || []).map((storage: any) => 
+            typeof storage === 'object' ? storage?.name || storage?.value || '' : String(storage)
+          ).filter((s: string) => s.trim() !== '');
+          
+          // Extract condition options as strings
+          const conditionOptions = (device.conditionOptions || []).map((condition: any) => 
+            typeof condition === 'object' ? condition?.name || condition?.value || '' : String(condition)
+          ).filter((c: string) => c.trim() !== '');
+          
+          return {
+            id: device._id,
+            brand: typeof device.brand === 'object' ? device.brand?.name || '' : device.brand || '',
+            model: device.model,
+            image: deviceImage,
+            storageOptions,
+            conditionOptions,
+            selected: false,
+            pricing: device.pricing || [],
+            expanded: false
+          };
+        });
+        
+        setDevices(transformedDevices);
+        const total = (response as any).pagination?.total || (response as any).total || transformedDevices.length;
+        setTotalDevices(total);
+        setTotalPages(Math.ceil(total / 20));
+      }
+    } catch (error: any) {
+      console.error('Error fetching devices:', error);
+      setError(error.message || 'Failed to load devices');
+    } finally {
+      setIsLoading(false);
+      setLoadingConfig(false);
     }
-  ]);
+  };
 
-  const allConditions = ['Like New', 'Good', 'Fair', 'Poor', 'Faulty'];
-  const allStorageOptions = ['128GB', '256GB', '512GB', '1TB'];
-  
-  const conditions = allConditions.filter(c => enabledConditions[c]);
+  // Debounce search query
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 500); // Wait 500ms after user stops typing
 
-  const handleLogout = () => {
-    localStorage.removeItem('recyclerAuth');
-    localStorage.removeItem('recyclerEmail');
-    navigate('/recycler/login');
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Build unique storage and condition options from devices
+  const allStorageOptions = React.useMemo(() => {
+    const storageSet = new Set<string>();
+    devices.forEach(device => {
+      device.storageOptions.forEach(storage => storageSet.add(storage));
+    });
+    return Array.from(storageSet).sort();
+  }, [devices]);
+
+  const allConditions = React.useMemo(() => {
+    const conditionSet = new Set<string>();
+    devices.forEach(device => {
+      device.conditionOptions.forEach(condition => conditionSet.add(condition));
+    });
+    return Array.from(conditionSet);
+  }, [devices]);
+
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  // Initialize enabled options dynamically when devices are loaded
+  React.useEffect(() => {
+    if (devices.length > 0 && allStorageOptions.length > 0 && allConditions.length > 0) {
+      // Build initial enabled state from all available options
+      const initialStorage: {[key: string]: boolean} = {};
+      allStorageOptions.forEach(storage => {
+        initialStorage[storage] = enabledStorage[storage] !== undefined ? enabledStorage[storage] : true;
+      });
+      
+      const initialConditions: {[key: string]: boolean} = {};
+      allConditions.forEach(condition => {
+        initialConditions[condition] = enabledConditions[condition] !== undefined ? enabledConditions[condition] : true;
+      });
+      
+      // Only update if there are new options
+      const hasNewStorage = allStorageOptions.some(s => enabledStorage[s] === undefined);
+      const hasNewConditions = allConditions.some(c => enabledConditions[c] === undefined);
+      
+      if (hasNewStorage) {
+        setEnabledStorage(initialStorage);
+      }
+      if (hasNewConditions) {
+        setEnabledConditions(initialConditions);
+      }
+    }
+  }, [devices, allStorageOptions, allConditions]);
+
+  // Load existing configuration on mount
+  React.useEffect(() => {
+    const loadConfiguration = async () => {
+      try {
+        setLoadingConfig(true);
+        const configResponse = await recyclerAuthService.getDeviceConfiguration();
+        
+        if (configResponse.success && configResponse.data) {
+          const { preferences, pricingByDevice } = configResponse.data;
+          
+          // Update preferences
+          if (preferences) {
+            if (preferences.enabledStorage) {
+              setEnabledStorage(preferences.enabledStorage);
+            }
+            if (preferences.enabledConditions) {
+              setEnabledConditions(preferences.enabledConditions);
+            }
+            // Store selected devices list
+            if (preferences.selectedDevices) {
+              (window as any).__savedSelectedDevices = preferences.selectedDevices;
+            }
+          }
+          
+          // Store pricing data for later
+          if (pricingByDevice) {
+            (window as any).__initialPricingData = pricingByDevice;
+          }
+        }
+      } catch (err: any) {
+        console.error('Failed to load configuration:', err);
+      } finally {
+        setLoadingConfig(false);
+      }
+    };
+    
+    loadConfiguration();
+  }, []);
+
+  // Fetch devices from backend
+  React.useEffect(() => {
+    const fetchDevices = async () => {
+      // Check if user is authenticated before making API call
+      const token = localStorage.getItem('recyclerToken');
+      const auth = localStorage.getItem('recyclerAuth');
+      
+      console.log('Auth check:', { 
+        hasToken: !!token, 
+        authFlag: auth,
+        token: token?.substring(0, 20) + '...' 
+      });
+      
+      if (!token || auth !== 'true') {
+        console.error('No valid authentication found');
+        setError('Authentication required. Please log in.');
+        setIsLoading(false);
+        return;
+      }
+      
+      setIsLoading(true);
+      setError('');
+      try {
+        console.log('Fetching devices with params:', { searchQuery, brandFilter, page: currentPage });
+        const response = await recyclerAuthService.getAllDevices({
+          search: searchQuery || undefined,
+          brand: brandFilter !== 'all' ? brandFilter : undefined,
+          page: currentPage,
+          limit: 50, // Fetch 50 devices per page
+        });
+        
+        console.log('Devices fetched successfully:', response.data?.length || 0);
+        
+        // Get saved pricing data and selected devices
+        const savedPricing = (window as any).__initialPricingData || {};
+        const savedSelectedDevices = (window as any).__savedSelectedDevices || [];
+        
+        console.log('Saved selected devices:', savedSelectedDevices);
+        console.log('Saved pricing keys:', Object.keys(savedPricing));
+        
+        // Transform backend data to match frontend interface
+        const transformedDevices = response.data.map((device: any) => {
+          const deviceId = device._id;
+          const deviceIdStr = String(deviceId);
+          const devicePricing = savedPricing[deviceId] || [];
+          
+          // Use device storage options from backend
+          const storageOptions = device.storageOptions && device.storageOptions.length > 0
+            ? device.storageOptions
+            : [];
+          
+          // Use device condition options from backend
+          const conditionOptions = device.conditionOptions && device.conditionOptions.length > 0
+            ? device.conditionOptions
+            : [];
+          
+          // Check if device is in saved selected devices list (convert both to strings for comparison)
+          const isSelected = savedSelectedDevices.some((id: any) => String(id) === deviceIdStr || String(id._id) === deviceIdStr);
+          
+          console.log('Device check:', {
+            name: device.name,
+            deviceId: deviceIdStr,
+            isSelected,
+            hasPricing: devicePricing.length > 0
+          });
+          
+          return {
+            id: deviceId,
+            brand: device.brand?.name || device.brand || '',
+            model: device.name,
+            image: device.image || 'https://via.placeholder.com/100',
+            storageOptions,
+            conditionOptions,
+            selected: isSelected, // Use saved selection state
+            expanded: false,
+            pricing: devicePricing,
+          };
+        });
+        
+        setDevices(transformedDevices);
+        
+        // Update pagination info
+        if (response.pagination) {
+          setTotalPages(response.pagination.pages);
+          setTotalDevices(response.pagination.total);
+        }
+      } catch (err: any) {
+        console.error('Failed to fetch devices:', err);
+        console.error('Error response:', err.response?.data);
+        
+        // If 401 error, redirect to login
+        if (err.response?.status === 401) {
+          console.error('Authentication failed, redirecting to login');
+          navigate('/recycler/login');
+          return;
+        }
+        
+        setError(err.response?.data?.message || err.message || 'Failed to load devices');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDevices();
+  }, [debouncedSearchQuery, brandFilter, currentPage, loadingConfig]);
+
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    try {
+      await recyclerAuthService.logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      navigate('/recycler/login');
+    }
   };
 
   const handleSelectAll = () => {
@@ -191,20 +391,94 @@ const RecyclerDevicesAccepted: React.FC = () => {
     return pricing ? pricing.price : 0;
   };
 
-  const handleSave = () => {
-    const selectedDevices = devices.filter(d => d.selected);
-    console.log('Saving device preferences:', selectedDevices);
-    alert(`Successfully saved ${selectedDevices.length} device configurations!`);
+  const handleSaveDevice = async (deviceId: number) => {
+    const device = devices.find(d => d.id === deviceId);
+    
+    if (!device || !device.selected) {
+      alert('Please select the device first.');
+      return;
+    }
+    
+    setIsSaving(true);
+    try {
+      // Only send pricing for this specific device
+      const devicePricing = [{
+        deviceId: String(device.id),
+        pricing: device.pricing,
+      }];
+      
+      const configData = {
+        selectedDevices: [], // Empty array tells backend to NOT update selections
+        devicePricing, // Only update pricing for this one device
+        enabledStorage,
+        enabledConditions,
+      };
+      
+      console.log('Saving single device:', configData);
+      
+      const response = await recyclerAuthService.saveDeviceConfiguration(configData);
+      
+      if (response.success) {
+        alert(`✅ Successfully saved ${device.model} configuration!`);
+      } else {
+        throw new Error(response.message || 'Failed to save configuration');
+      }
+    } catch (err: any) {
+      console.error('Save device error:', err);
+      alert(`❌ Failed to save device: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const filteredDevices = devices.filter(device => {
-    const matchesSearch = device.model.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         device.brand.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesBrand = brandFilter === 'all' || device.brand === brandFilter;
-    return matchesSearch && matchesBrand;
-  });
+  const handleSave = async () => {
+    const selectedDevices = devices.filter(d => d.selected);
+    
+    if (selectedDevices.length === 0) {
+      alert('Please select at least one device to save.');
+      return;
+    }
+    
+    setIsSaving(true);
+    try {
+      // Prepare data for backend (convert IDs to strings)
+      const selectedDeviceIds = selectedDevices.map(d => String(d.id));
+      const devicePricing = selectedDevices.map(device => ({
+        deviceId: String(device.id),
+        pricing: device.pricing,
+      }));
+      
+      const configData = {
+        selectedDevices: selectedDeviceIds,
+        devicePricing,
+        enabledStorage,
+        enabledConditions,
+      };
+      
+      console.log('Saving configuration:', configData);
+      
+      const response = await recyclerAuthService.saveDeviceConfiguration(configData);
+      
+      if (response.success) {
+        alert(`✅ Successfully saved ${response.data.savedCount} device configurations!`);
+        if (response.data.errorCount > 0) {
+          console.warn('Some devices had errors:', response.data.errors);
+        }
+      } else {
+        throw new Error(response.message || 'Failed to save configuration');
+      }
+    } catch (err: any) {
+      console.error('Save configuration error:', err);
+      alert(`❌ Failed to save configuration: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
-  const uniqueBrands = Array.from(new Set(devices.map(d => d.brand)));
+  // Devices are already filtered by backend, no need for client-side filtering
+  const filteredDevices = devices;
+
+  const uniqueBrands = Array.from(new Set(devices.map(d => d.brand).filter(b => b && b.trim() !== '')));
   const selectedCount = devices.filter(d => d.selected).length;
   
   const toggleStorage = (storage: string) => {
@@ -216,7 +490,15 @@ const RecyclerDevicesAccepted: React.FC = () => {
   };
   
   const getEnabledStorageForDevice = (device: Device) => {
-    return device.storageOptions.filter(s => enabledStorage[s]);
+    // Return device storage options that are enabled in global settings
+    const deviceStorage = device.storageOptions || [];
+    return deviceStorage.filter(s => enabledStorage[s] !== false);
+  };
+  
+  const getConditionsForDevice = (device: Device) => {
+    // Return device conditions that are enabled in global settings
+    const deviceConditions = device.conditionOptions || [];
+    return deviceConditions.filter(c => enabledConditions[c] !== false);
   };
 
   return (
@@ -303,11 +585,20 @@ const RecyclerDevicesAccepted: React.FC = () => {
                   </button>
                   <button
                     onClick={handleSave}
-                    disabled={selectedCount === 0}
+                    disabled={selectedCount === 0 || isSaving}
                     className="flex items-center gap-2 px-7 py-3 bg-gradient-to-r from-[#1b981b] to-[#157a15] hover:from-[#157a15] hover:to-[#0d8a0d] text-white rounded-xl font-bold transition-all shadow-lg hover:shadow-2xl text-sm disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-0.5 hover:scale-105"
                   >
-                    <Save className="w-4 h-4" />
-                    Save Configuration
+                    {isSaving ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        Save Configuration
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -403,8 +694,42 @@ const RecyclerDevicesAccepted: React.FC = () => {
               </div>
             )}
 
+            {/* Loading State */}
+            {(isLoading || loadingConfig) && (
+              <div className="flex items-center justify-center py-20">
+                <div className="text-center">
+                  <div className="w-16 h-16 border-4 border-[#1b981b] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                  <p className="text-gray-600 font-medium">
+                    {loadingConfig ? 'Loading configuration...' : 'Loading devices...'}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Error State */}
+            {error && !isLoading && (
+              <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-6 mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-red-500 rounded-xl flex items-center justify-center">
+                    <span className="text-white font-bold">!</span>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-red-800">Error Loading Devices</p>
+                    <p className="text-sm text-red-600">{error}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Search and Filter */}
+            {!isLoading && !error && (
             <div className="bg-gradient-to-r from-white to-gray-50 rounded-3xl shadow-lg border border-gray-200 p-6 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm text-gray-600">
+                  Showing <span className="font-bold text-[#1b981b]">{devices.length}</span> of <span className="font-bold">{totalDevices}</span> devices
+                </p>
+                <p className="text-sm text-gray-500">Page {currentPage} of {totalPages}</p>
+              </div>
               <div className="flex flex-col md:flex-row gap-4">
                 <div className="relative flex-1">
                   <div className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-gradient-to-br from-[#1b981b]/10 to-[#157a15]/10 rounded-xl flex items-center justify-center">
@@ -414,7 +739,10 @@ const RecyclerDevicesAccepted: React.FC = () => {
                     type="text"
                     placeholder="Search by brand or model..."
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setCurrentPage(1); // Reset to page 1 on search
+                    }}
                     className="w-full pl-16 pr-4 py-4 bg-white border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#1b981b]/50 focus:border-[#1b981b] transition-all text-sm font-medium shadow-sm hover:shadow-md"
                   />
                 </div>
@@ -424,7 +752,10 @@ const RecyclerDevicesAccepted: React.FC = () => {
                   </div>
                   <select
                     value={brandFilter}
-                    onChange={(e) => setBrandFilter(e.target.value)}
+                    onChange={(e) => {
+                      setBrandFilter(e.target.value);
+                      setCurrentPage(1); // Reset to page 1 on filter change
+                    }}
                     className="w-full pl-16 pr-10 py-4 bg-white border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#1b981b]/50 focus:border-[#1b981b] transition-all text-sm font-semibold appearance-none cursor-pointer shadow-sm hover:shadow-md"
                   >
                     <option value="all">All Brands</option>
@@ -435,10 +766,14 @@ const RecyclerDevicesAccepted: React.FC = () => {
                 </div>
               </div>
             </div>
+            )}
 
-            {/* Devices Grid */}
-            <div className="space-y-5">
-              {filteredDevices.map((device) => (
+            {/* Device List */}
+            {!isLoading && !error && (
+              <div>
+                {filteredDevices.length > 0 ? (
+                  <div className="space-y-5">
+                    {filteredDevices.map((device) => (
                 <div
                   key={device.id}
                   className={`group relative overflow-hidden bg-gradient-to-br from-white to-gray-50 rounded-3xl border-2 transition-all duration-300 ${
@@ -543,11 +878,11 @@ const RecyclerDevicesAccepted: React.FC = () => {
                             </tr>
                           </thead>
                           <tbody>
-                            {conditions.map(condition => (
+                            {getConditionsForDevice(device).map(condition => (
                               <tr key={condition} className="border-b border-gray-100">
                                 <td className="py-3 px-4">
                                   <span className={`px-3 py-1 rounded-lg text-xs font-semibold ${
-                                    condition === 'Like New' ? 'bg-green-100 text-green-700' :
+                                    condition === 'Like New' || condition === 'Excellent' ? 'bg-green-100 text-green-700' :
                                     condition === 'Good' ? 'bg-blue-100 text-blue-700' :
                                     condition === 'Fair' ? 'bg-yellow-100 text-yellow-700' :
                                     condition === 'Poor' ? 'bg-orange-100 text-orange-700' :
@@ -577,20 +912,98 @@ const RecyclerDevicesAccepted: React.FC = () => {
                           </tbody>
                         </table>
                       </div>
+                      
+                      {/* Individual Save Button */}
+                      <div className="mt-6 flex justify-end">
+                        <button
+                          onClick={() => handleSaveDevice(device.id)}
+                          disabled={isSaving}
+                          className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#1b981b] to-[#157a15] hover:from-[#157a15] hover:to-[#1b981b] text-white rounded-xl font-bold transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Save className="w-5 h-5" />
+                          <span>{isSaving ? 'Saving...' : 'Save This Device'}</span>
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
-              ))}
-            </div>
+                    ))}
+                  </div>
+                ) : (
+                  /* Empty State */
+                  <div className="bg-white rounded-3xl border border-gray-200 p-16 text-center shadow-sm">
+                    <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Package className="w-10 h-10 text-gray-400" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">No devices found</h3>
+                    <p className="text-gray-500">Try adjusting your search or filter criteria</p>
+                  </div>
+                )}
 
-            {/* Empty State */}
-            {filteredDevices.length === 0 && (
-              <div className="bg-white rounded-3xl border border-gray-200 p-16 text-center shadow-sm">
-                <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Package className="w-10 h-10 text-gray-400" />
-                </div>
-                <h3 className="text-xl font-bold text-gray-800 mb-2">No devices found</h3>
-                <p className="text-gray-500">Try adjusting your search or filter criteria</p>
+                {/* Pagination Controls */}
+                {!isLoading && !error && filteredDevices.length > 0 && totalPages > 1 && (
+                  <div className="mt-8 flex items-center justify-center gap-2">
+                    <button
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                      className="px-4 py-2 bg-white border-2 border-gray-200 rounded-xl font-semibold text-gray-700 hover:border-[#1b981b] hover:text-[#1b981b] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    >
+                      First
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                      className="px-4 py-2 bg-white border-2 border-gray-200 rounded-xl font-semibold text-gray-700 hover:border-[#1b981b] hover:text-[#1b981b] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    >
+                      Previous
+                    </button>
+                    
+                    {/* Page Numbers */}
+                    <div className="flex items-center gap-2">
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum;
+                        if (totalPages <= 5) {
+                          pageNum = i + 1;
+                        } else if (currentPage <= 3) {
+                          pageNum = i + 1;
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i;
+                        } else {
+                          pageNum = currentPage - 2 + i;
+                        }
+                        
+                        return (
+                          <button
+                            key={pageNum}
+                            onClick={() => setCurrentPage(pageNum)}
+                            className={`w-10 h-10 rounded-xl font-bold transition-all ${
+                              currentPage === pageNum
+                                ? 'bg-gradient-to-r from-[#1b981b] to-[#157a15] text-white shadow-lg'
+                                : 'bg-white border-2 border-gray-200 text-gray-700 hover:border-[#1b981b] hover:text-[#1b981b]'
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                      className="px-4 py-2 bg-white border-2 border-gray-200 rounded-xl font-semibold text-gray-700 hover:border-[#1b981b] hover:text-[#1b981b] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    >
+                      Next
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                      className="px-4 py-2 bg-white border-2 border-gray-200 rounded-xl font-semibold text-gray-700 hover:border-[#1b981b] hover:text-[#1b981b] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    >
+                      Last
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

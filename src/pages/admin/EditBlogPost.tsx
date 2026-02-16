@@ -22,6 +22,7 @@ import {
   Loader
 } from 'lucide-react';
 import AdminSidebar from '../../components/AdminSidebar';
+import { adminAPI } from '../../services/api';
 
 interface BlogFormData {
   title: string;
@@ -71,31 +72,46 @@ const EditBlogPost: React.FC = () => {
   ];
 
   useEffect(() => {
-    // Fetch blog post data
-    const fetchBlogPost = () => {
-      setTimeout(() => {
-        // Mock data - replace with actual API call
-        const mockBlog = {
-          title: 'iPhone 15 Pro Max: Is It Worth Upgrading?',
-          slug: 'iphone-15-pro-max-worth-upgrading',
-          excerpt: 'A comprehensive review of Apple\'s latest flagship and whether you should upgrade from older models.',
-          content: '## Introduction\n\nThe iPhone 15 Pro Max represents Apple\'s latest flagship offering...\n\n### Key Features\n\n- A17 Pro chip\n- Titanium design\n- Advanced camera system\n\n**Performance** has been exceptional in our tests.',
-          heroImageUrl: 'https://via.placeholder.com/800x400?text=iPhone+15+Pro+Max',
-          category: 'Device Reviews',
-          tags: ['iPhone', 'Apple', 'Review', 'Smartphones'],
-          author: 'Admin',
-          status: 'published' as 'draft' | 'published',
-          metaTitle: 'iPhone 15 Pro Max Review: Worth the Upgrade? | Recycle My Device',
-          metaDescription: 'Complete review of iPhone 15 Pro Max. Find out if it\'s worth upgrading and what to do with your old device.',
-          metaKeywords: 'iphone 15 pro max, apple review, smartphone upgrade',
-        };
+    // Fetch blog post data from backend
+    const fetchBlogPost = async () => {
+      if (!id) {
+        alert('Blog ID not found');
+        navigate('/panel/content');
+        return;
+      }
 
-        setFormData({
-          ...mockBlog,
-          heroImage: null,
-        });
+      try {
+        setLoading(true);
+        const response: any = await adminAPI.blogs.getById(id);
+        
+        if (response.success && response.data) {
+          const blog = response.data;
+          setFormData({
+            title: blog.title || '',
+            slug: blog.slug || '',
+            excerpt: blog.excerpt || '',
+            content: blog.content || '',
+            heroImage: null,
+            heroImageUrl: blog.image || undefined,
+            category: blog.category || '',
+            tags: blog.tags || [],
+            author: blog.author || 'Admin',
+            status: blog.status || 'draft',
+            metaTitle: blog.metaTitle || '',
+            metaDescription: blog.metaDescription || '',
+            metaKeywords: blog.metaKeywords || '',
+          });
+        } else {
+          alert('Blog post not found');
+          navigate('/panel/content');
+        }
+      } catch (error: any) {
+        console.error('Error fetching blog:', error);
+        alert(error.message || 'Failed to load blog post');
+        navigate('/panel/content');
+      } finally {
         setLoading(false);
-      }, 1000);
+      }
     };
 
     fetchBlogPost();
@@ -145,12 +161,63 @@ const EditBlogPost: React.FC = () => {
     }));
   };
 
-  const handleSave = (status: 'draft' | 'published') => {
-    setFormData(prev => ({ ...prev, status }));
-    console.log('Updating blog post:', { ...formData, status });
-    // TODO: API call to update blog post
-    alert(`Blog post updated as ${status}!`);
-    navigate('/panel/content');
+  const handleSave = async (status: 'draft' | 'published') => {
+    if (!id) {
+      alert('Blog ID not found');
+      return;
+    }
+
+    // Validate required fields
+    if (!formData.title.trim()) {
+      alert('Please enter a blog title');
+      return;
+    }
+
+    if (!formData.content.trim()) {
+      alert('Please enter blog content');
+      return;
+    }
+
+    if (!formData.category) {
+      alert('Please select a category');
+      return;
+    }
+
+    try {
+      // Prepare blog data for API
+      const blogData: any = {
+        title: formData.title.trim(),
+        slug: formData.slug || formData.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+        excerpt: formData.excerpt.trim(),
+        content: formData.content.trim(),
+        category: formData.category,
+        author: formData.author || 'Admin',
+        status: status,
+        tags: formData.tags,
+      };
+
+      // Add image URL if available
+      if (formData.heroImageUrl) {
+        blogData.image = formData.heroImageUrl;
+      }
+
+      // Set published date if publishing for the first time
+      if (status === 'published' && formData.status !== 'published') {
+        blogData.publishedAt = new Date().toISOString();
+      }
+
+      const response: any = await adminAPI.blogs.update(id, blogData);
+      
+      if (response.success) {
+        alert(`Blog post ${status === 'published' ? 'published' : 'updated'} successfully!`);
+        navigate('/panel/content');
+      } else {
+        alert('Failed to update blog post');
+      }
+    } catch (error: any) {
+      console.error('Error updating blog post:', error);
+      alert(error.message || 'Failed to update blog post');
+    }
   };
 
   const insertTextFormat = (format: string) => {

@@ -4,7 +4,7 @@ import { ChevronDown, Star, Clock, CreditCard, Lock, Package, ArrowLeft, Check, 
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { useCart } from '../contexts/CartContext';
-import { deviceAPI, pricingAPI } from '../services/api';
+import { deviceAPI, pricingAPI, customerAPI } from '../services/api';
 
 interface Device {
   _id: string;
@@ -24,9 +24,10 @@ interface Offer {
     name: string;
     email: string;
     phone: string;
-    city: string;
     logo: string;
     usps: string[];
+    rating?: number;
+    reviewCount?: number;
   };
   price: number;
   storage: string;
@@ -83,8 +84,8 @@ export default function PhoneDetail() {
         setError(null);
 
         // Fetch device details
-        const deviceResponse = await deviceAPI.getDeviceById(id);
-        if (deviceResponse.success) {
+        const deviceResponse: any = await deviceAPI.getDeviceById(id);
+        if (deviceResponse?.success) {
           setDevice(deviceResponse.data);
           // Set default storage to first option
           if (deviceResponse.data.storageOptions.length > 0) {
@@ -108,14 +109,74 @@ export default function PhoneDetail() {
       if (!id || !selectedStorage || !selectedCondition) return;
 
       try {
-        const pricingResponse = await pricingAPI.getDevicePrices(
+        const pricingResponse: any = await pricingAPI.getDevicePrices(
           id,
           selectedStorage,
           selectedCondition
         );
         
-        if (pricingResponse.success) {
-          setOffers(pricingResponse.data.offers || []);
+        if (pricingResponse?.success) {
+          const fetchedOffers = pricingResponse.data.offers || [];
+          
+          // Filter out partners with no valid price set (0, null, undefined)
+          const validOffers = fetchedOffers.filter((offer: Offer) => 
+            offer.price && offer.price > 0
+          );
+          
+          // Fetch reviews for each recycler
+          const ratingsPromises = validOffers.map(async (offer: Offer) => {
+            try {
+              console.log(`Fetching reviews for recycler: ${offer.recycler.name} (ID: ${offer.recycler.id})`);
+              const reviewResponse: any = await customerAPI.reviews.getByRecycler(offer.recycler.id);
+              console.log(`Review response for ${offer.recycler.name}:`, reviewResponse);
+              
+              if (reviewResponse?.success && reviewResponse.data) {
+                const reviews = reviewResponse.data.reviews || [];
+                console.log(`Found ${reviews.length} total reviews, checking for approved...`);
+                const approvedReviews = reviews.filter((r: any) => r.status === 'approved');
+                console.log(`Found ${approvedReviews.length} approved reviews`);
+                
+                if (approvedReviews.length > 0) {
+                  const totalRating = approvedReviews.reduce((sum: number, r: any) => sum + r.rating, 0);
+                  const avgRating = totalRating / approvedReviews.length;
+                  return {
+                    recyclerId: offer.recycler.id,
+                    rating: Math.round(avgRating * 10) / 10,
+                    count: approvedReviews.length
+                  };
+                }
+              }
+              return null;
+            } catch (err) {
+              console.error(`Error fetching reviews for ${offer.recycler.name}:`, err);
+              return null;
+            }
+          });
+
+          const ratingsResults = await Promise.all(ratingsPromises);
+          const ratingsMap: Record<string, { rating: number; count: number }> = {};
+          
+          ratingsResults.forEach((result) => {
+            if (result) {
+              ratingsMap[result.recyclerId] = { rating: result.rating, count: result.count };
+            }
+          });
+
+          console.log('Ratings Map:', ratingsMap);
+          
+          // Add rating data to offers
+          const offersWithRatings = validOffers.map((offer: Offer) => ({
+            ...offer,
+            recycler: {
+              ...offer.recycler,
+              rating: ratingsMap[offer.recycler.id]?.rating,
+              reviewCount: ratingsMap[offer.recycler.id]?.count
+            }
+          }));
+          
+          console.log('Offers with ratings:', offersWithRatings);
+          
+          setOffers(offersWithRatings);
         }
       } catch (err: any) {
         console.error('Error fetching pricing:', err);
@@ -151,7 +212,7 @@ export default function PhoneDetail() {
       recyclerId: offer.recycler.id,
       recyclerName: offer.recycler.name,
       recyclerLogo: offer.recycler.logo || '',
-      recyclerCity: offer.recycler.city,
+      recyclerCity: '',
       price: offer.price,
       storage: selectedStorage,
       condition: selectedCondition,
@@ -300,8 +361,10 @@ export default function PhoneDetail() {
                             setSelectedCondition(condition);
                             setIsConditionOpen(false);
                           }}
-                          className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 text-left hover:bg-gray-50 transition-colors flex items-center justify-between ${
-                            selectedCondition === condition ? 'bg-[#1b981b] text-white hover:bg-[#158515]' : 'text-gray-900'
+                          className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 text-left transition-colors flex items-center justify-between ${
+                            selectedCondition === condition 
+                              ? 'bg-[#1b981b] text-white hover:bg-[#158515]' 
+                              : 'text-gray-900 hover:bg-gray-50'
                           }`}
                         >
                           <span className="font-medium text-sm sm:text-base">{condition}</span>
@@ -376,9 +439,19 @@ export default function PhoneDetail() {
                     <div className="flex items-start space-x-3 sm:space-x-4 flex-1 w-full sm:w-auto">
                       <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
                         {offer.recycler.logo ? (
-                          <img src={offer.recycler.logo} alt={offer.recycler.name} className="w-full h-full object-cover" />
+                          <img 
+                            src={offer.recycler.logo} 
+                            alt={offer.recycler.name} 
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              e.currentTarget.parentElement!.innerHTML = `<div class="w-full h-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm sm:text-base">${offer.recycler.name.split(' ').map(word => word[0]).join('').substring(0, 2).toUpperCase()}</div>`;
+                            }}
+                          />
                         ) : (
-                          <span className="text-xl sm:text-2xl">🏢</span>
+                          <div className="w-full h-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm sm:text-base">
+                            {offer.recycler.name.split(' ').map(word => word[0]).join('').substring(0, 2).toUpperCase()}
+                          </div>
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -386,11 +459,13 @@ export default function PhoneDetail() {
                           {offer.recycler.name}
                         </h3>
                         <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-600">
-                          <div className="flex items-center space-x-1">
-                            <Star className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-yellow-400 fill-yellow-400" />
-                            <span className="font-semibold">4.5</span>
-                            <span className="hidden sm:inline">(New Partner)</span>
-                          </div>
+                          {offer.recycler.rating !== undefined && offer.recycler.reviewCount !== undefined && offer.recycler.reviewCount > 0 && (
+                            <div className="flex items-center space-x-1">
+                              <Star className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-yellow-400 fill-yellow-400" />
+                              <span className="font-semibold">{offer.recycler.rating}</span>
+                              <span className="hidden sm:inline">({offer.recycler.reviewCount} {offer.recycler.reviewCount === 1 ? 'review' : 'reviews'})</span>
+                            </div>
+                          )}
                           <div className="flex items-center space-x-1">
                             <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400" />
                             <span>1-2 days</span>
@@ -398,10 +473,6 @@ export default function PhoneDetail() {
                           <div className="hidden md:flex items-center space-x-1">
                             <CreditCard className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400" />
                             <span>Bank Transfer</span>
-                          </div>
-                          <div className="flex items-center space-x-1">
-                            <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400" />
-                            <span>{offer.recycler.city}</span>
                           </div>
                         </div>
                       </div>
@@ -414,7 +485,7 @@ export default function PhoneDetail() {
                           <div className="text-[10px] sm:text-xs text-gray-500 mb-0.5 sm:mb-1">Best Price</div>
                         )}
                         <div className="text-2xl sm:text-3xl font-bold text-[#1b981b]">
-                          £{offer.price}
+                          £{Math.round(offer.price)}
                         </div>
                       </div>
                       <button

@@ -20,11 +20,13 @@ interface Phone {
 export default function SellYourPhone() {
   const [searchParams] = useSearchParams();
   const [selectedBrand, setSelectedBrand] = useState('All');
+  const [selectedCategory, setSelectedCategory] = useState('All');
   const [sortBy, setSortBy] = useState('name');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSortOpen, setIsSortOpen] = useState(false);
   const [phones, setPhones] = useState<Phone[]>([]);
   const [brands, setBrands] = useState<string[]>(['All']);
+  const [categories, setCategories] = useState<string[]>(['All']);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +52,7 @@ export default function SellYourPhone() {
     }
   }, [searchParams]);
 
-  // Fetch initial devices and brands on mount
+  // Fetch initial devices, brands, and categories on mount
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
@@ -58,17 +60,31 @@ export default function SellYourPhone() {
         setError(null);
 
         // Fetch brands
-        const brandsResponse = await brandAPI.getAllBrands();
+        const brandsResponse: any = await brandAPI.getAllBrands();
         if (brandsResponse.success) {
           const brandNames = brandsResponse.data.map((b: any) => b.name);
           setBrands(['All', ...brandNames]);
         }
 
+        // Fetch categories from utilities
+        try {
+          const categoriesResponse: any = await deviceAPI.getCategories();
+          if (categoriesResponse.success && categoriesResponse.data) {
+            // Backend returns array of strings directly
+            setCategories(['All', ...categoriesResponse.data]);
+          }
+        } catch (err) {
+          console.error('Error fetching categories:', err);
+          // Set default categories as fallback
+          setCategories(['All', 'Smartphone', 'Tablet', 'Laptop', 'Smartwatch', 'Console']);
+        }
+
         // Fetch first page of devices
-        const devicesResponse = await deviceAPI.getAllDevices({
+        const devicesResponse: any = await deviceAPI.getAllDevices({
           page: 1,
           limit: DEVICES_PER_PAGE,
           brand: selectedBrand !== 'All' ? selectedBrand : undefined,
+          category: selectedCategory !== 'All' ? selectedCategory : undefined,
           search: searchQuery || undefined,
           sortBy,
         });
@@ -103,6 +119,7 @@ export default function SellYourPhone() {
           page: 1,
           limit: DEVICES_PER_PAGE,
           brand: selectedBrand !== 'All' ? selectedBrand : undefined,
+          category: selectedCategory !== 'All' ? selectedCategory : undefined,
           search: searchQuery || undefined,
           sortBy,
         });
@@ -126,7 +143,7 @@ export default function SellYourPhone() {
     }, searchQuery ? 500 : 0);
 
     return () => clearTimeout(timeoutId);
-  }, [selectedBrand, searchQuery, sortBy]);
+  }, [selectedBrand, selectedCategory, searchQuery, sortBy]);
 
   // Load more devices
   const loadMoreDevices = async () => {
@@ -136,10 +153,11 @@ export default function SellYourPhone() {
       setLoadingMore(true);
       const nextPage = page + 1;
 
-      const devicesResponse = await deviceAPI.getAllDevices({
+      const devicesResponse: any = await deviceAPI.getAllDevices({
         page: nextPage,
         limit: DEVICES_PER_PAGE,
         brand: selectedBrand !== 'All' ? selectedBrand : undefined,
+        category: selectedCategory !== 'All' ? selectedCategory : undefined,
         search: searchQuery || undefined,
         sortBy,
       });
@@ -225,21 +243,46 @@ export default function SellYourPhone() {
           {/* Filter Tabs and Sort */}
           <div className="flex flex-col gap-4">
             {/* Brand Filters - Horizontal Scroll on Mobile */}
-            <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
-              <div className="flex gap-2 min-w-max sm:min-w-0 sm:flex-wrap">
-                {brands.map((brand) => (
-                  <button
-                    key={brand}
-                    onClick={() => setSelectedBrand(brand)}
-                    className={`px-4 sm:px-5 py-2 rounded-lg font-semibold text-xs sm:text-sm transition-all duration-200 whitespace-nowrap ${
-                      selectedBrand === brand
-                        ? 'bg-[#1b981b] text-white shadow-md'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    {brand}
-                  </button>
-                ))}
+            <div>
+              <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-2">Filter by Brand:</label>
+              <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+                <div className="flex gap-2 min-w-max sm:min-w-0 sm:flex-wrap">
+                  {brands.map((brand) => (
+                    <button
+                      key={brand}
+                      onClick={() => setSelectedBrand(brand)}
+                      className={`px-4 sm:px-5 py-2 rounded-lg font-semibold text-xs sm:text-sm transition-all duration-200 whitespace-nowrap ${
+                        selectedBrand === brand
+                          ? 'bg-[#1b981b] text-white shadow-md'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {brand}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Category Filters - Horizontal Scroll on Mobile */}
+            <div>
+              <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-2">Filter by Category:</label>
+              <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+                <div className="flex gap-2 min-w-max sm:min-w-0 sm:flex-wrap">
+                  {categories.map((category) => (
+                    <button
+                      key={category}
+                      onClick={() => setSelectedCategory(category)}
+                      className={`px-4 sm:px-5 py-2 rounded-lg font-semibold text-xs sm:text-sm transition-all duration-200 whitespace-nowrap ${
+                        selectedCategory === category
+                          ? 'bg-[#1b981b] text-white shadow-md'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {category}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 

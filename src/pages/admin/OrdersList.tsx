@@ -205,7 +205,7 @@ const OrdersList: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600 mb-1">Total Revenue</p>
-                    <p className="text-3xl font-bold text-gray-800">£{totalRevenue.toLocaleString()}</p>
+                    <p className="text-3xl font-bold text-gray-800">£{Math.floor(totalRevenue).toLocaleString()}</p>
                   </div>
                   <div className="w-12 h-12 bg-[#1b981b] rounded-xl flex items-center justify-center">
                     <div className="text-white font-bold text-lg">£</div>
@@ -318,7 +318,7 @@ const OrdersList: React.FC = () => {
                     <div className="flex items-center gap-6 lg:border-l-2 lg:pl-6 border-gray-200">
                       <div className="text-center">
                         <p className="text-sm text-gray-500 mb-1">Offer Price</p>
-                        <p className="text-2xl font-bold text-[#1b981b]">£{order.offerPrice}</p>
+                        <p className="text-2xl font-bold text-[#1b981b]">£{Math.round(order.offerPrice)}</p>
                       </div>
 
                       <div className="flex items-center gap-2">

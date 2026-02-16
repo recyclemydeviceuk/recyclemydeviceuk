@@ -19,7 +19,7 @@ import AdminOTP from './pages/AdminOTP';
 import Devices from './pages/admin/Devices';
 import AddDevice from './pages/admin/AddDevice';
 import EditDevice from './pages/admin/EditDevice';
-import OrdersList from './pages/admin/OrdersList';
+import Orders from './pages/admin/Orders';
 import OrderDetails from './pages/admin/OrderDetails';
 import UtilitiesManagement from './pages/admin/UtilitiesManagement';
 import RecyclerManagement from './pages/admin/RecyclerManagement';
@@ -29,9 +29,11 @@ import CustomerManagement from './pages/admin/CustomerManagement';
 import CustomerDetails from './pages/admin/CustomerDetails';
 import ContentManagement from './pages/admin/ContentManagement';
 import ContactSubmissions from './pages/admin/ContactSubmissions';
+import NewsletterSubscriptions from './pages/admin/NewsletterSubscriptions';
 import ProtectedRoute from './components/ProtectedRoute';
 import ProtectedRecyclerRoute from './components/ProtectedRecyclerRoute';
 import RecyclerLogin from './pages/recycler/RecyclerLogin';
+import RecyclerOTP from './pages/recycler/RecyclerOTP';
 import RecyclerDashboard from './pages/recycler/RecyclerDashboard';
 import RecyclerOrders from './pages/recycler/RecyclerOrders';
 import RecyclerProfile from './pages/recycler/RecyclerProfile';
@@ -42,6 +44,7 @@ import AdminReviews from './pages/admin/AdminReviews';
 import AddBlogPost from './pages/admin/AddBlogPost';
 import EditBlogPost from './pages/admin/EditBlogPost';
 import ScrollToTop from './components/ScrollToTop';
+import { RecyclerProvider } from './contexts/RecyclerContext';
 
 function App() {
   return (
@@ -53,6 +56,7 @@ function App() {
         <Route path="/phone/:id" element={<PhoneDetail />} />
         <Route path="/checkout" element={<Checkout />} />
         <Route path="/order-confirmation" element={<OrderConfirmation />} />
+        <Route path="/review" element={<ReviewRecycler />} />
         <Route path="/review-recycler" element={<ReviewRecycler />} />
         <Route path="/how-it-works" element={<HowItWorks />} />
         <Route path="/contact" element={<ContactUs />} />
@@ -65,11 +69,14 @@ function App() {
         
         {/* Recycler Routes */}
         <Route path="/recycler/login" element={<RecyclerLogin />} />
+        <Route path="/recycler/verify-otp" element={<RecyclerOTP />} />
         <Route 
           path="/recycler/dashboard" 
           element={
             <ProtectedRecyclerRoute>
-              <RecyclerDashboard />
+              <RecyclerProvider>
+                <RecyclerDashboard />
+              </RecyclerProvider>
             </ProtectedRecyclerRoute>
           } 
         />
@@ -77,7 +84,9 @@ function App() {
           path="/recycler/devices-accepted" 
           element={
             <ProtectedRecyclerRoute>
-              <RecyclerDevicesAccepted />
+              <RecyclerProvider>
+                <RecyclerDevicesAccepted />
+              </RecyclerProvider>
             </ProtectedRecyclerRoute>
           } 
         />
@@ -85,7 +94,9 @@ function App() {
           path="/recycler/orders" 
           element={
             <ProtectedRecyclerRoute>
-              <RecyclerOrders />
+              <RecyclerProvider>
+                <RecyclerOrders />
+              </RecyclerProvider>
             </ProtectedRecyclerRoute>
           } 
         />
@@ -93,7 +104,9 @@ function App() {
           path="/recycler/profile" 
           element={
             <ProtectedRecyclerRoute>
-              <RecyclerProfile />
+              <RecyclerProvider>
+                <RecyclerProfile />
+              </RecyclerProvider>
             </ProtectedRecyclerRoute>
           } 
         />
@@ -101,7 +114,9 @@ function App() {
           path="/recycler/support" 
           element={
             <ProtectedRecyclerRoute>
-              <RecyclerSupport />
+              <RecyclerProvider>
+                <RecyclerSupport />
+              </RecyclerProvider>
             </ProtectedRecyclerRoute>
           } 
         />
@@ -109,7 +124,9 @@ function App() {
           path="/recycler/reviews" 
           element={
             <ProtectedRecyclerRoute>
-              <RecyclerReviews />
+              <RecyclerProvider>
+                <RecyclerReviews />
+              </RecyclerProvider>
             </ProtectedRecyclerRoute>
           } 
         />
@@ -153,7 +170,7 @@ function App() {
           path="/panel/orders" 
           element={
             <ProtectedRoute>
-              <OrdersList />
+              <Orders />
             </ProtectedRoute>
           } 
         />
@@ -226,6 +243,14 @@ function App() {
           element={
             <ProtectedRoute>
               <ContactSubmissions />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/panel/newsletter-subscriptions" 
+          element={
+            <ProtectedRoute>
+              <NewsletterSubscriptions />
             </ProtectedRoute>
           } 
         />

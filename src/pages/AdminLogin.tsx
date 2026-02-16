@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mail, ArrowRight } from 'lucide-react';
+import { adminAPI } from '../services/api';
 
 const AdminLogin: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -25,24 +26,22 @@ const AdminLogin: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // Call backend API to send OTP
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/auth/admin/send-otp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email: email.trim() }),
-      });
+      // Call backend API to send OTP using adminAPI service
+      console.log('Sending OTP to:', email.trim());
+      const response: any = await adminAPI.auth.login(email.trim());
+      console.log('Send OTP response:', response);
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to send OTP');
+      // Handle different response structures
+      const success = response.success || response.data?.success !== false; // Assume success if no explicit failure
+      
+      if (!success) {
+        throw new Error(response.message || response.data?.message || 'Failed to send OTP');
       }
 
       // Success - navigate to OTP verification page
       navigate('/panel/verify-otp', { state: { email: email.trim() } });
     } catch (err: any) {
+      console.error('Send OTP error:', err);
       setError(err.message || 'Failed to send OTP. Please try again.');
     } finally {
       setIsLoading(false);

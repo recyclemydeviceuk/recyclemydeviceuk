@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { recyclerAuthService } from '../../services/recyclerAuth';
+import { recyclerAPI } from '../../services/api';
 import { 
   LogOut, 
   Smartphone, 
@@ -23,31 +25,76 @@ import RecyclerSidebar from '../../components/RecyclerSidebar';
 
 const RecyclerDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const recyclerEmail = localStorage.getItem('recyclerEmail');
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const userData = recyclerAuthService.getUserData();
+  const recyclerEmail = userData.email;
 
-  const handleLogout = () => {
-    localStorage.removeItem('recyclerAuth');
-    localStorage.removeItem('recyclerEmail');
-    navigate('/recycler/login');
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const [statsResponse, ordersResponse] = await Promise.all([
+        recyclerAPI.dashboard.getStats(),
+        recyclerAPI.dashboard.getRecentOrders(4)
+      ]);
+      
+      // axios interceptor returns response.data directly
+      if (statsResponse?.data) {
+        const data = statsResponse.data;
+        setStats({
+          totalDevicesPurchased: data.orders?.total || 0,
+          totalSpent: data.revenue?.total || 0,
+          averagePrice: data.orders?.total > 0 ? (data.revenue?.total / data.orders?.total) : 0,
+          activeOrders: (data.orders?.pending || 0) + (data.orders?.processing || 0),
+          completedOrders: data.orders?.completed || 0,
+          pendingPayments: data.revenue?.pending || 0,
+          monthlyGrowth: data.orders?.recent || 0
+        });
+      }
+      
+      if (ordersResponse?.data) {
+        setRecentOrders(ordersResponse.data);
+      }
+    } catch (error: any) {
+      console.error('Error fetching dashboard data:', error);
+      setError(error.message || 'Failed to load dashboard data');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // Mock data for recycler dashboard
-  const stats = {
-    totalDevicesPurchased: 287,
-    totalSpent: 42580,
-    averagePrice: 148.36,
-    activeOrders: 12,
-    completedOrders: 275,
-    pendingPayments: 3,
-    monthlyGrowth: 15.5
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
+    
+    setIsLoggingOut(true);
+    try {
+      // Call backend to invalidate session
+      await recyclerAuthService.logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      // Navigate to login
+      navigate('/recycler/login');
+    }
   };
 
-  const recentOrders = [
-    { id: 'ORD-1234', device: 'iPhone 13 Pro', customer: 'John Smith', price: 450, status: 'completed', date: '2026-02-10' },
-    { id: 'ORD-1235', device: 'Samsung Galaxy S21', customer: 'Sarah Johnson', price: 320, status: 'pending', date: '2026-02-11' },
-    { id: 'ORD-1236', device: 'iPad Air', customer: 'Mike Brown', price: 380, status: 'processing', date: '2026-02-11' },
-    { id: 'ORD-1237', device: 'MacBook Pro', customer: 'Emily Davis', price: 850, status: 'completed', date: '2026-02-09' },
-  ];
+  const [stats, setStats] = useState({
+    totalDevicesPurchased: 0,
+    totalSpent: 0,
+    averagePrice: 0,
+    activeOrders: 0,
+    completedOrders: 0,
+    pendingPayments: 0,
+    monthlyGrowth: 0
+  });
+
+  const [recentOrders, setRecentOrders] = useState<any[]>([]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -93,10 +140,20 @@ const RecyclerDashboard: React.FC = () => {
                 </button>
                 <button
                   onClick={handleLogout}
-                  className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                  disabled={isLoggingOut}
+                  className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <LogOut className="w-4 h-4" />
-                  <span className="font-semibold text-sm">Logout</span>
+                  {isLoggingOut ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span className="font-semibold text-sm">Logging out...</span>
+                    </>
+                  ) : (
+                    <>
+                      <LogOut className="w-4 h-4" />
+                      <span className="font-semibold text-sm">Logout</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -106,6 +163,37 @@ const RecyclerDashboard: React.FC = () => {
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto p-8">
           <div className="max-w-7xl mx-auto space-y-8">
+            {/* Loading State */}
+            {isLoading && (
+              <div className="flex items-center justify-center py-20">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="w-16 h-16 border-4 border-[#1b981b] border-t-transparent rounded-full animate-spin"></div>
+                  <p className="text-gray-600 font-semibold">Loading dashboard data...</p>
+                </div>
+              </div>
+            )}
+
+            {/* Error State */}
+            {error && (
+              <div className="bg-gradient-to-r from-red-50 to-red-100 border-2 border-red-200 rounded-2xl p-6">
+                <div className="flex items-center gap-3">
+                  <AlertCircle className="w-6 h-6 text-red-600" />
+                  <div>
+                    <h3 className="font-bold text-red-900">Error Loading Dashboard</h3>
+                    <p className="text-sm text-red-700 mt-1">{error}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={fetchDashboardData}
+                  className="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold text-sm transition-colors"
+                >
+                  Try Again
+                </button>
+              </div>
+            )}
+
+            {!isLoading && !error && (
+            <>
             {/* Performance Overview Banner */}
             <div className="relative overflow-hidden bg-gradient-to-br from-[#1b981b] via-[#1a8f1a] to-[#157a15] rounded-3xl p-8 shadow-2xl">
               <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
@@ -165,8 +253,8 @@ const RecyclerDashboard: React.FC = () => {
                       </div>
                     </div>
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Total Spent</p>
-                    <p className="text-3xl font-bold bg-gradient-to-r from-[#1b981b] to-[#157a15] bg-clip-text text-transparent mb-1">£{stats.totalSpent.toLocaleString()}</p>
-                    <p className="text-xs text-gray-500">Avg: £{stats.averagePrice.toFixed(2)} per device</p>
+                    <p className="text-3xl font-bold bg-gradient-to-r from-[#1b981b] to-[#157a15] bg-clip-text text-transparent mb-1">£{Math.round(stats.totalSpent).toLocaleString()}</p>
+                    <p className="text-xs text-gray-500">Avg: £{Math.round(stats.averagePrice)} per device</p>
                   </div>
                 </div>
 
@@ -203,7 +291,7 @@ const RecyclerDashboard: React.FC = () => {
                       </div>
                     </div>
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Pending Payments</p>
-                    <p className="text-3xl font-bold bg-gradient-to-r from-orange-600 to-orange-500 bg-clip-text text-transparent mb-1">{stats.pendingPayments}</p>
+                    <p className="text-3xl font-bold bg-gradient-to-r from-orange-600 to-orange-500 bg-clip-text text-transparent mb-1">£{Math.round(stats.pendingPayments).toLocaleString()}</p>
                     <p className="text-xs text-gray-500">Awaiting processing</p>
                   </div>
                 </div>
@@ -303,7 +391,7 @@ const RecyclerDashboard: React.FC = () => {
                     <tbody className="divide-y divide-gray-200">
                       {recentOrders.map((order, index) => (
                         <tr 
-                          key={order.id} 
+                          key={order._id || order.id} 
                           className="hover:bg-gradient-to-r hover:from-gray-50 hover:to-transparent transition-all duration-200 cursor-pointer group"
                           style={{ animationDelay: `${index * 50}ms` }}
                         >
@@ -312,19 +400,26 @@ const RecyclerDashboard: React.FC = () => {
                               <div className="w-8 h-8 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg flex items-center justify-center">
                                 <ShoppingBag className="w-4 h-4 text-gray-600" />
                               </div>
-                              <span className="text-sm font-mono font-bold text-gray-800">{order.id}</span>
+                              <span className="text-sm font-mono font-bold text-gray-800">{order.orderNumber || order.id}</span>
                             </div>
                           </td>
                           <td className="px-6 py-5 whitespace-nowrap">
                             <div className="flex items-center gap-3">
                               <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl flex items-center justify-center p-1">
                                 <img 
-                                  src="https://storage.googleapis.com/atomjuice-product-images/apple/iphone-16-pro/default.png" 
-                                  alt={order.device}
+                                  src={
+                                    order.deviceId?.image || 
+                                    order.deviceId?.imageUrl ||
+                                    "https://storage.googleapis.com/atomjuice-product-images/apple/iphone-16-pro/default.png"
+                                  }
+                                  alt={order.deviceId?.name || order.deviceName || 'Device'}
                                   className="w-full h-full object-contain"
+                                  onError={(e) => {
+                                    e.currentTarget.src = "https://storage.googleapis.com/atomjuice-product-images/apple/iphone-16-pro/default.png";
+                                  }}
                                 />
                               </div>
-                              <span className="text-sm font-semibold text-gray-800">{order.device}</span>
+                              <span className="text-sm font-semibold text-gray-800">{order.deviceId?.name || order.deviceName || 'Device'}</span>
                             </div>
                           </td>
                           <td className="px-6 py-5 whitespace-nowrap">
@@ -332,11 +427,11 @@ const RecyclerDashboard: React.FC = () => {
                               <div className="w-8 h-8 bg-gradient-to-br from-purple-100 to-purple-200 rounded-full flex items-center justify-center">
                                 <Users className="w-4 h-4 text-purple-600" />
                               </div>
-                              <span className="text-sm font-medium text-gray-700">{order.customer}</span>
+                              <span className="text-sm font-medium text-gray-700">{order.customerName || order.customer?.name || 'Customer'}</span>
                             </div>
                           </td>
                           <td className="px-6 py-5 whitespace-nowrap">
-                            <span className="text-base font-bold bg-gradient-to-r from-[#1b981b] to-[#157a15] bg-clip-text text-transparent">£{order.price}</span>
+                            <span className="text-base font-bold bg-gradient-to-r from-[#1b981b] to-[#157a15] bg-clip-text text-transparent">£{order.amount || 0}</span>
                           </td>
                           <td className="px-6 py-5 whitespace-nowrap">
                             <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border-2 ${getStatusBadge(order.status)}`}>
@@ -352,7 +447,7 @@ const RecyclerDashboard: React.FC = () => {
                                 <Calendar className="w-4 h-4 text-gray-600" />
                               </div>
                               <span className="text-sm font-medium text-gray-700">
-                                {new Date(order.date).toLocaleDateString('en-GB', { 
+                                {new Date(order.createdAt || order.date).toLocaleDateString('en-GB', { 
                                   day: 'numeric', 
                                   month: 'short',
                                   year: 'numeric'
@@ -367,6 +462,8 @@ const RecyclerDashboard: React.FC = () => {
                 </div>
               </div>
             </div>
+            </>
+            )}
           </div>
         </main>
       </div>

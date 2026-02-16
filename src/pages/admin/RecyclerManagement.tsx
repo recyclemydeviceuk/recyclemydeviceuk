@@ -1,127 +1,93 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Building2, Search, Filter, Eye, LogOut, Download, Mail, Phone, Globe, Clock, CheckCircle, XCircle } from 'lucide-react';
 import AdminSidebar from '../../components/AdminSidebar';
+import Pagination from '../../components/Pagination';
+import { adminAPI } from '../../services/api';
 
 interface RecyclerApplication {
-  id: string;
+  _id: string;
   companyName: string;
-  contactName: string;
+  name: string;
   email: string;
   phone: string;
   website: string;
   businessDescription: string;
   status: 'pending' | 'approved' | 'rejected';
-  submittedDate: string;
-  reviewedDate?: string;
-  reviewedBy?: string;
+  createdAt: string;
+  processedAt?: string;
+  processedBy?: { email: string };
 }
 
 const RecyclerManagement: React.FC = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [applications, setApplications] = useState<RecyclerApplication[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({ total: 0, pending: 0, approved: 0, rejected: 0 });
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    pages: 0,
+  });
+
+  useEffect(() => {
+    loadApplications();
+    loadStats();
+  }, [statusFilter, searchQuery, pagination.page]);
+
+  const loadApplications = async () => {
+    try {
+      setLoading(true);
+      const params: any = {
+        page: pagination.page,
+        limit: pagination.limit,
+      };
+      if (statusFilter !== 'all') params.status = statusFilter;
+      if (searchQuery) params.search = searchQuery;
+      
+      const response: any = await adminAPI.recyclerApplications.getAll(params);
+      setApplications(response.data);
+      
+      if (response.pagination) {
+        setPagination(prev => ({
+          ...prev,
+          total: response.pagination.total,
+          pages: response.pagination.pages,
+        }));
+      }
+    } catch (error) {
+      console.error('Error loading applications:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadStats = async () => {
+    try {
+      const response: any = await adminAPI.recyclerApplications.getStats();
+      setStats(response.data);
+    } catch (error) {
+      console.error('Error loading stats:', error);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('adminAuth');
     localStorage.removeItem('adminEmail');
+    sessionStorage.removeItem('adminToken');
+    sessionStorage.removeItem('sessionToken');
     navigate('/panel/login');
   };
 
-  // Mock recycler applications data
-  const applications: RecyclerApplication[] = [
-    {
-      id: '1',
-      companyName: 'EcoTech Recycling Ltd',
-      contactName: 'Robert Johnson',
-      email: 'robert@ecotech-recycling.com',
-      phone: '+44 20 7123 4567',
-      website: 'www.ecotech-recycling.com',
-      businessDescription: 'We are a leading electronics recycling company with over 15 years of experience. We specialize in environmentally-friendly disposal and refurbishment of mobile devices, ensuring compliance with all UK environmental regulations.',
-      status: 'pending',
-      submittedDate: '2026-02-10',
-    },
-    {
-      id: '2',
-      companyName: 'GreenCircle Solutions',
-      contactName: 'Emma Thompson',
-      email: 'emma@greencircle.co.uk',
-      phone: '+44 161 555 0123',
-      website: 'www.greencircle.co.uk',
-      businessDescription: 'GreenCircle Solutions is committed to sustainable electronics recycling. We process thousands of devices monthly and have partnerships with major retailers across the UK. Our certified facilities ensure safe and ethical recycling practices.',
-      status: 'approved',
-      submittedDate: '2026-02-08',
-      reviewedDate: '2026-02-09',
-      reviewedBy: 'Admin',
-    },
-    {
-      id: '3',
-      companyName: 'Mobile Refresh UK',
-      contactName: 'David Martinez',
-      email: 'david@mobilerefresh.uk',
-      phone: '+44 121 777 8899',
-      website: 'www.mobilerefresh.uk',
-      businessDescription: 'Mobile Refresh UK focuses on refurbishing and recycling smartphones and tablets. We have a dedicated team of technicians and a state-of-the-art facility in Birmingham. Our goal is to reduce e-waste while providing affordable refurbished devices.',
-      status: 'pending',
-      submittedDate: '2026-02-09',
-    },
-    {
-      id: '4',
-      companyName: 'TechCycle Pro',
-      contactName: 'Sarah Williams',
-      email: 'sarah@techcyclepro.com',
-      phone: '+44 113 222 3344',
-      website: 'www.techcyclepro.com',
-      businessDescription: 'TechCycle Pro is a family-owned business specializing in mobile device recycling and refurbishment. We pride ourselves on transparent pricing and excellent customer service. Our operations are fully certified and environmentally compliant.',
-      status: 'approved',
-      submittedDate: '2026-02-07',
-      reviewedDate: '2026-02-08',
-      reviewedBy: 'Admin',
-    },
-    {
-      id: '5',
-      companyName: 'QuickRecycle Ltd',
-      contactName: 'Michael Brown',
-      email: 'michael@quickrecycle.com',
-      phone: '+44 141 888 9900',
-      website: 'www.quickrecycle.com',
-      businessDescription: 'Small startup focusing on quick device recycling with instant payment options.',
-      status: 'rejected',
-      submittedDate: '2026-02-06',
-      reviewedDate: '2026-02-07',
-      reviewedBy: 'Admin',
-    },
-    {
-      id: '6',
-      companyName: 'PhoneReborn Industries',
-      contactName: 'Jessica Lee',
-      email: 'jessica@phonereborn.co.uk',
-      phone: '+44 151 444 5566',
-      website: 'www.phonereborn.co.uk',
-      businessDescription: 'PhoneReborn Industries has been in the electronics recycling business for 10 years. We specialize in high-volume processing and work with corporate clients to manage their IT asset disposal. Our facility is ISO certified and we maintain strict data security protocols.',
-      status: 'pending',
-      submittedDate: '2026-02-11',
-    },
-  ];
+  const filteredApplications = applications;
 
-  const filteredApplications = applications
-    .filter(app => {
-      const matchesSearch = 
-        app.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        app.contactName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        app.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        app.phone.includes(searchQuery);
-      
-      const matchesStatus = statusFilter === 'all' || app.status === statusFilter;
-      
-      return matchesSearch && matchesStatus;
-    })
-    .sort((a, b) => new Date(b.submittedDate).getTime() - new Date(a.submittedDate).getTime());
-
-  const totalApplications = applications.length;
-  const pendingApplications = applications.filter(app => app.status === 'pending').length;
-  const approvedRecyclers = applications.filter(app => app.status === 'approved').length;
-  const rejectedApplications = applications.filter(app => app.status === 'rejected').length;
+  const totalApplications = stats.total;
+  const pendingApplications = stats.pending;
+  const approvedRecyclers = stats.approved;
+  const rejectedApplications = stats.rejected;
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -273,11 +239,19 @@ const RecyclerManagement: React.FC = () => {
               </p>
             </div>
 
+            {/* Loading State */}
+            {loading && (
+              <div className="flex justify-center items-center py-12">
+                <div className="w-12 h-12 border-4 border-[#1b981b] border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            )}
+
             {/* Applications List */}
+            {!loading && (
             <div className="space-y-4">
               {filteredApplications.map((application) => (
                 <div
-                  key={application.id}
+                  key={application._id}
                   className="bg-white rounded-xl border-2 border-gray-200 hover:border-[#1b981b] hover:shadow-lg transition-all duration-200 p-6"
                 >
                   <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
@@ -303,7 +277,7 @@ const RecyclerManagement: React.FC = () => {
                           </div>
                           <div>
                             <p className="text-xs text-gray-500">Contact Person</p>
-                            <p className="font-semibold text-gray-900">{application.contactName}</p>
+                            <p className="font-semibold text-gray-900">{application.name}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -345,12 +319,12 @@ const RecyclerManagement: React.FC = () => {
                       <div className="flex items-center gap-6 text-xs text-gray-500">
                         <div>
                           <span className="font-semibold">Submitted: </span>
-                          <span>{application.submittedDate}</span>
+                          <span>{new Date(application.createdAt).toLocaleDateString()}</span>
                         </div>
-                        {application.reviewedDate && (
+                        {application.processedAt && (
                           <div>
                             <span className="font-semibold">Reviewed: </span>
-                            <span>{application.reviewedDate}</span>
+                            <span>{new Date(application.processedAt).toLocaleDateString()}</span>
                           </div>
                         )}
                       </div>
@@ -359,7 +333,7 @@ const RecyclerManagement: React.FC = () => {
                     {/* View Button */}
                     <div className="flex items-center gap-2 lg:border-l-2 lg:pl-6 border-gray-200">
                       <button
-                        onClick={() => navigate(`/panel/recyclers/${application.id}`)}
+                        onClick={() => navigate(`/panel/recyclers/${application._id}`)}
                         className="flex items-center gap-2 px-6 py-3 bg-[#1b981b] hover:bg-[#157a15] text-white rounded-xl transition-all duration-200 font-semibold whitespace-nowrap"
                       >
                         <Eye className="w-5 h-5" />
@@ -370,6 +344,7 @@ const RecyclerManagement: React.FC = () => {
                 </div>
               ))}
             </div>
+            )}
 
             {/* Empty State */}
             {filteredApplications.length === 0 && (
@@ -377,6 +352,19 @@ const RecyclerManagement: React.FC = () => {
                 <Building2 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                 <h3 className="text-lg font-bold text-gray-900 mb-2">No applications found</h3>
                 <p className="text-gray-600">Try adjusting your search or filter criteria</p>
+              </div>
+            )}
+
+            {/* Pagination */}
+            {!loading && filteredApplications.length > 0 && pagination.pages > 1 && (
+              <div className="mt-6">
+                <Pagination
+                  currentPage={pagination.page}
+                  totalPages={pagination.pages}
+                  totalItems={pagination.total}
+                  itemsPerPage={pagination.limit}
+                  onPageChange={(page) => setPagination(prev => ({ ...prev, page }))}
+                />
               </div>
             )}
           </div>

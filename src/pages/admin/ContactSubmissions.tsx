@@ -1,17 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Search, Filter, Eye, Mail, Phone, Calendar, MessageSquare, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { LogOut, Search, Filter, Eye, Mail, Calendar, MessageSquare, CheckCircle, XCircle, Clock, Loader2, AlertCircle } from 'lucide-react';
 import AdminSidebar from '../../components/AdminSidebar';
+import Pagination from '../../components/Pagination';
+import { adminAPI } from '../../services/api';
 
 interface ContactSubmission {
-  id: string;
-  fullName: string;
+  _id: string;
+  name: string;
   email: string;
-  orderNumber?: string;
-  subject: string;
+  phone?: string;
+  subject?: string;
   message: string;
-  submittedDate: string;
-  status: 'new' | 'read' | 'responded';
+  category?: string;
+  status: 'new' | 'in_progress' | 'resolved' | 'closed';
+  isRead?: boolean;
+  readAt?: string;
+  response?: string;
+  respondedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface ContactStats {
+  totalContacts: number;
+  unreadContacts: number;
+  pendingContacts: number;
+  repliedContacts: number;
 }
 
 const ContactSubmissions: React.FC = () => {
@@ -20,154 +35,241 @@ const ContactSubmissions: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedSubmission, setSelectedSubmission] = useState<ContactSubmission | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showReplyModal, setShowReplyModal] = useState(false);
+  const [replyMessage, setReplyMessage] = useState('');
+  const [replySending, setReplySending] = useState(false);
+  const [submissions, setSubmissions] = useState<ContactSubmission[]>([]);
+  const [stats, setStats] = useState<ContactStats>({
+    totalContacts: 0,
+    unreadContacts: 0,
+    pendingContacts: 0,
+    repliedContacts: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    pages: 0,
+  });
 
   const handleLogout = () => {
-    localStorage.removeItem('adminAuth');
-    localStorage.removeItem('adminEmail');
+    sessionStorage.removeItem('adminAuth');
+    sessionStorage.removeItem('adminEmail');
+    sessionStorage.removeItem('adminToken');
     navigate('/panel/login');
   };
 
-  // Mock contact submissions data
-  const [submissions, setSubmissions] = useState<ContactSubmission[]>([
-    {
-      id: '1',
-      fullName: 'John Smith',
-      email: 'john.smith@email.com',
-      orderNumber: 'RM1001',
-      subject: 'Query about device valuation',
-      message: 'Hi, I have an iPhone 14 Pro in excellent condition. I got a quote of £650 but I think it should be worth more. Can you help me understand how the pricing works? The device is barely 6 months old with no scratches.',
-      submittedDate: '2026-02-11 14:30',
-      status: 'new'
-    },
-    {
-      id: '2',
-      fullName: 'Sarah Johnson',
-      email: 'sarah.j@email.com',
-      subject: 'Payment not received',
-      message: 'I sent my Samsung Galaxy S23 two weeks ago and it was received according to the tracking. The buyer confirmed the condition but I still haven\'t received payment. My order number is RM1015. Can you please check the status?',
-      submittedDate: '2026-02-11 11:15',
-      status: 'read'
-    },
-    {
-      id: '3',
-      fullName: 'Michael Brown',
-      email: 'michael.b@email.com',
-      orderNumber: 'RM1025',
-      subject: 'Device return request',
-      message: 'The buyer reduced the price from £450 to £280 saying there are scratches, but my phone was in perfect condition when I sent it. I want to reject their offer and get my device back. How do I proceed?',
-      submittedDate: '2026-02-10 16:45',
-      status: 'responded'
-    },
-    {
-      id: '4',
-      fullName: 'Emma Wilson',
-      email: 'emma.w@email.com',
-      subject: 'How to track my device',
-      message: 'I posted my phone yesterday using the prepaid label but I can\'t find any tracking information in my email. How can I track if my device has been received by the buyer?',
-      submittedDate: '2026-02-10 09:20',
-      status: 'responded'
-    },
-    {
-      id: '5',
-      fullName: 'David Taylor',
-      email: 'david.t@email.com',
-      orderNumber: 'RM1032',
-      subject: 'Question about device condition',
-      message: 'My phone screen has a tiny hairline crack that\'s barely visible. Should I select "Good" or "Fair" condition? I don\'t want any price reductions later. Please advise.',
-      submittedDate: '2026-02-09 18:30',
-      status: 'read'
-    },
-    {
-      id: '6',
-      fullName: 'Sophie Anderson',
-      email: 'sophie.a@email.com',
-      subject: 'Unable to print shipping label',
-      message: 'I\'ve completed my order but the shipping label PDF won\'t download. I\'ve tried multiple browsers but it keeps showing an error. Can you please email it to me directly?',
-      submittedDate: '2026-02-09 13:55',
-      status: 'new'
-    },
-    {
-      id: '7',
-      fullName: 'James Miller',
-      email: 'james.m@email.com',
-      orderNumber: 'RM1048',
-      subject: 'Selling multiple devices',
-      message: 'I have 3 old iPhones to sell - iPhone 11, iPhone 12, and iPhone 13. Do I need to create separate orders for each or can I send them together? Also, will I get separate payments or one combined payment?',
-      submittedDate: '2026-02-08 15:40',
-      status: 'responded'
-    },
-    {
-      id: '8',
-      fullName: 'Lucy Roberts',
-      email: 'lucy.r@email.com',
-      subject: 'Payment method question',
-      message: 'I see the payment is sent via bank transfer. I don\'t have a UK bank account, only PayPal. Is there any way to receive payment through PayPal instead?',
-      submittedDate: '2026-02-08 10:25',
-      status: 'new'
-    },
-  ]);
-
-  const filteredSubmissions = submissions
-    .filter(sub => {
-      const matchesSearch = 
-        sub.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        sub.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        sub.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        sub.orderNumber?.includes(searchQuery);
+  // Fetch contact submissions
+  const fetchSubmissions = async () => {
+    try {
+      setLoading(true);
+      setError(null);
       
-      const matchesStatus = statusFilter === 'all' || sub.status === statusFilter;
+      const params: any = {
+        page: pagination.page,
+        limit: pagination.limit,
+      };
+      if (statusFilter !== 'all') {
+        params.status = statusFilter;
+      }
+      if (searchQuery) {
+        params.search = searchQuery;
+      }
       
-      return matchesSearch && matchesStatus;
-    })
-    .sort((a, b) => new Date(b.submittedDate).getTime() - new Date(a.submittedDate).getTime());
+      const response: any = await adminAPI.contacts.getAll(params);
+      
+      if (response.success) {
+        setSubmissions(response.data || []);
+        if (response.pagination) {
+          setPagination(prev => ({
+            ...prev,
+            total: response.pagination.total,
+            pages: response.pagination.pages,
+          }));
+        }
+      } else {
+        setError('Failed to fetch submissions');
+      }
+    } catch (err: any) {
+      console.error('Error fetching submissions:', err);
+      setError(err.message || 'Failed to load contact submissions');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const totalSubmissions = submissions.length;
-  const newSubmissions = submissions.filter(s => s.status === 'new').length;
-  const readSubmissions = submissions.filter(s => s.status === 'read').length;
-  const respondedSubmissions = submissions.filter(s => s.status === 'responded').length;
+  // Fetch statistics
+  const fetchStats = async () => {
+    try {
+      const response: any = await adminAPI.contacts.getStats();
+      
+      if (response.success) {
+        setStats(response.data);
+      }
+    } catch (err: any) {
+      console.error('Error fetching stats:', err);
+    }
+  };
 
-  const getStatusColor = (status: string) => {
+  // Initial load
+  useEffect(() => {
+    fetchSubmissions();
+    fetchStats();
+  }, []);
+
+  // Refetch when filters change
+  useEffect(() => {
+    const delayDebounce = setTimeout(() => {
+      if (!loading) {
+        fetchSubmissions();
+      }
+    }, 500);
+
+    return () => clearTimeout(delayDebounce);
+  }, [searchQuery, statusFilter]);
+
+
+  const filteredSubmissions = submissions;
+
+  const totalSubmissions = stats.totalContacts;
+  const newSubmissions = stats.unreadContacts;
+  const pendingSubmissions = stats.pendingContacts;
+  const respondedSubmissions = stats.repliedContacts;
+
+  const getStatusColor = (status: string, isRead?: boolean) => {
+    if (!isRead) {
+      return 'bg-blue-100 text-blue-700 border-blue-300';
+    }
     switch (status) {
       case 'new':
-        return 'bg-blue-100 text-blue-700 border-blue-300';
-      case 'read':
         return 'bg-yellow-100 text-yellow-700 border-yellow-300';
-      case 'responded':
+      case 'in_progress':
+        return 'bg-purple-100 text-purple-700 border-purple-300';
+      case 'resolved':
+      case 'closed':
         return 'bg-green-100 text-green-700 border-green-300';
       default:
         return 'bg-gray-100 text-gray-700 border-gray-300';
     }
   };
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status: string, isRead?: boolean) => {
+    if (!isRead) {
+      return <Mail className="w-4 h-4" />;
+    }
     switch (status) {
       case 'new':
-        return <Mail className="w-4 h-4" />;
-      case 'read':
         return <Eye className="w-4 h-4" />;
-      case 'responded':
+      case 'in_progress':
+        return <Clock className="w-4 h-4" />;
+      case 'resolved':
+      case 'closed':
         return <CheckCircle className="w-4 h-4" />;
       default:
         return null;
     }
   };
 
-  const handleViewDetails = (submission: ContactSubmission) => {
-    setSelectedSubmission(submission);
-    setShowDetailModal(true);
-    // Mark as read if it was new
-    if (submission.status === 'new') {
-      setSubmissions(submissions.map(s => 
-        s.id === submission.id ? { ...s, status: 'read' as const } : s
-      ));
+  const getStatusLabel = (status: string, isRead?: boolean) => {
+    if (!isRead) return 'New';
+    switch (status) {
+      case 'new': return 'Read';
+      case 'in_progress': return 'In Progress';
+      case 'resolved': return 'Resolved';
+      case 'closed': return 'Closed';
+      default: return status;
     }
   };
 
-  const handleMarkAsResponded = (id: string) => {
-    setSubmissions(submissions.map(s => 
-      s.id === id ? { ...s, status: 'responded' as const } : s
-    ));
-    setShowDetailModal(false);
+  const handleViewDetails = async (submission: ContactSubmission) => {
+    setSelectedSubmission(submission);
+    setShowDetailModal(true);
+    
+    // Mark as read if it wasn't read
+    if (!submission.isRead) {
+      try {
+        await adminAPI.contacts.markAsRead(submission._id);
+        // Update local state
+        setSubmissions(submissions.map(s => 
+          s._id === submission._id ? { ...s, isRead: true, readAt: new Date().toISOString() } : s
+        ));
+        // Refresh stats
+        fetchStats();
+      } catch (err: any) {
+        console.error('Error marking as read:', err);
+      }
+    }
+  };
+
+  const handleMarkAsResponded = async (id: string) => {
+    try {
+      setActionLoading(true);
+      await adminAPI.contacts.updateStatus(id, 'resolved');
+      
+      // Update local state
+      setSubmissions(submissions.map(s => 
+        s._id === id ? { ...s, status: 'resolved' as const } : s
+      ));
+      
+      // Refresh stats
+      await fetchStats();
+      setShowDetailModal(false);
+    } catch (err: any) {
+      console.error('Error updating status:', err);
+      alert(err.message || 'Failed to update status');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleString('en-GB', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const handleReply = (submission: ContactSubmission) => {
+    setSelectedSubmission(submission);
+    setReplyMessage('');
+    setShowReplyModal(true);
+  };
+
+  const handleSendReply = async () => {
+    if (!selectedSubmission || !replyMessage.trim()) {
+      alert('Please enter a message');
+      return;
+    }
+
+    try {
+      setReplySending(true);
+      await adminAPI.contacts.reply(selectedSubmission._id, replyMessage);
+      
+      // Update local state to mark as resolved
+      setSubmissions(submissions.map(s => 
+        s._id === selectedSubmission._id ? { ...s, status: 'resolved' as const } : s
+      ));
+      
+      // Refresh stats
+      await fetchStats();
+      
+      alert('Reply sent successfully!');
+      setShowReplyModal(false);
+      setShowDetailModal(false);
+      setReplyMessage('');
+    } catch (err: any) {
+      console.error('Error sending reply:', err);
+      alert(err.message || 'Failed to send reply');
+    } finally {
+      setReplySending(false);
+    }
   };
 
   return (
@@ -226,11 +328,11 @@ const ContactSubmissions: React.FC = () => {
               <div className="bg-white rounded-lg sm:rounded-xl border-2 border-yellow-500 p-4 sm:p-5 md:p-6 shadow-lg">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs sm:text-sm text-gray-600 mb-0.5 sm:mb-1">Read</p>
-                    <p className="text-2xl sm:text-3xl font-bold text-gray-800">{readSubmissions}</p>
+                    <p className="text-xs sm:text-sm text-gray-600 mb-0.5 sm:mb-1">Pending</p>
+                    <p className="text-2xl sm:text-3xl font-bold text-gray-800">{pendingSubmissions}</p>
                   </div>
                   <div className="w-10 h-10 sm:w-12 sm:h-12 bg-yellow-500 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0">
-                    <Eye className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                    <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                   </div>
                 </div>
               </div>
@@ -273,8 +375,9 @@ const ContactSubmissions: React.FC = () => {
                   >
                     <option value="all">All Status</option>
                     <option value="new">New</option>
-                    <option value="read">Read</option>
-                    <option value="responded">Responded</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="resolved">Resolved</option>
+                    <option value="closed">Closed</option>
                   </select>
                 </div>
               </div>
@@ -287,48 +390,75 @@ const ContactSubmissions: React.FC = () => {
               </p>
             </div>
 
-            {/* Submissions List */}
-            <div className="space-y-3 sm:space-y-4">
-              {filteredSubmissions.map((submission) => (
-                <div
-                  key={submission.id}
-                  className="bg-white rounded-lg sm:rounded-xl border-2 border-gray-200 hover:border-[#1b981b] hover:shadow-lg transition-all duration-200 p-4 sm:p-5 md:p-6"
-                >
-                  <div className="flex flex-col gap-4">
-                    {/* Submission Info */}
-                    <div className="flex-1 space-y-2 sm:space-y-3">
-                      {/* Name and Status */}
-                      <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-                        <h3 className="text-base sm:text-lg font-bold text-gray-900">{submission.fullName}</h3>
-                        <span className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-semibold border-2 ${getStatusColor(submission.status)}`}>
-                          {getStatusIcon(submission.status)}
-                          {submission.status.charAt(0).toUpperCase() + submission.status.slice(1)}
-                        </span>
-                      </div>
+            {/* Loading State */}
+            {loading && (
+              <div className="bg-white rounded-lg sm:rounded-xl border-2 border-gray-200 p-12 text-center">
+                <Loader2 className="w-12 h-12 sm:w-16 sm:h-16 text-[#1b981b] mx-auto mb-4 animate-spin" />
+                <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-2">Loading submissions...</h3>
+                <p className="text-sm sm:text-base text-gray-600">Please wait while we fetch the data</p>
+              </div>
+            )}
 
-                      {/* Contact Details */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 text-xs sm:text-sm">
-                        <div className="flex items-center gap-1.5 sm:gap-2">
-                          <Mail className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" />
-                          <span className="text-gray-900 truncate">{submission.email}</span>
+            {/* Error State */}
+            {error && !loading && (
+              <div className="bg-white rounded-lg sm:rounded-xl border-2 border-red-200 p-8 sm:p-12 text-center">
+                <AlertCircle className="w-12 h-12 sm:w-16 sm:h-16 text-red-500 mx-auto mb-3 sm:mb-4" />
+                <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-1.5 sm:mb-2">Failed to load submissions</h3>
+                <p className="text-sm sm:text-base text-gray-600 mb-4">{error}</p>
+                <button
+                  onClick={() => fetchSubmissions()}
+                  className="px-6 py-2.5 bg-[#1b981b] hover:bg-[#157a15] text-white rounded-lg font-semibold transition-all duration-200"
+                >
+                  Try Again
+                </button>
+              </div>
+            )}
+
+            {/* Submissions List */}
+            {!loading && !error && (
+              <div className="space-y-3 sm:space-y-4">
+                {filteredSubmissions.map((submission) => (
+                  <div
+                    key={submission._id}
+                    className="bg-white rounded-lg sm:rounded-xl border-2 border-gray-200 hover:border-[#1b981b] hover:shadow-lg transition-all duration-200 p-4 sm:p-5 md:p-6"
+                  >
+                    <div className="flex flex-col gap-4">
+                      {/* Submission Info */}
+                      <div className="flex-1 space-y-2 sm:space-y-3">
+                        {/* Name and Status */}
+                        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                          <h3 className="text-base sm:text-lg font-bold text-gray-900">{submission.name}</h3>
+                          <span className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-semibold border-2 ${getStatusColor(submission.status, submission.isRead)}`}>
+                            {getStatusIcon(submission.status, submission.isRead)}
+                            {getStatusLabel(submission.status, submission.isRead)}
+                          </span>
                         </div>
-                        {submission.orderNumber && (
+
+                        {/* Contact Details */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 text-xs sm:text-sm">
                           <div className="flex items-center gap-1.5 sm:gap-2">
-                            <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" />
-                            <span className="text-gray-900">Order: {submission.orderNumber}</span>
+                            <Mail className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" />
+                            <span className="text-gray-900 truncate">{submission.email}</span>
+                          </div>
+                          {submission.category && (
+                            <div className="flex items-center gap-1.5 sm:gap-2">
+                              <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" />
+                              <span className="text-gray-900">{submission.category}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center gap-1.5 sm:gap-2">
+                            <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" />
+                            <span className="text-gray-900">{formatDate(submission.createdAt)}</span>
+                          </div>
+                        </div>
+
+                        {/* Subject */}
+                        {submission.subject && (
+                          <div>
+                            <p className="text-xs sm:text-sm font-semibold text-gray-700">Subject:</p>
+                            <p className="text-sm sm:text-base font-bold text-gray-900 mt-0.5 sm:mt-1">{submission.subject}</p>
                           </div>
                         )}
-                        <div className="flex items-center gap-1.5 sm:gap-2">
-                          <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" />
-                          <span className="text-gray-900">{submission.submittedDate}</span>
-                        </div>
-                      </div>
-
-                      {/* Subject */}
-                      <div>
-                        <p className="text-xs sm:text-sm font-semibold text-gray-700">Subject:</p>
-                        <p className="text-sm sm:text-base font-bold text-gray-900 mt-0.5 sm:mt-1">{submission.subject}</p>
-                      </div>
 
                       {/* Message Preview */}
                       <div className="bg-gray-50 rounded-lg p-2.5 sm:p-3">
@@ -350,13 +480,27 @@ const ContactSubmissions: React.FC = () => {
                 </div>
               ))}
             </div>
+            )}
 
             {/* Empty State */}
-            {filteredSubmissions.length === 0 && (
+            {!loading && !error && filteredSubmissions.length === 0 && (
               <div className="bg-white rounded-lg sm:rounded-xl border-2 border-gray-200 p-8 sm:p-12 text-center">
                 <MessageSquare className="w-12 h-12 sm:w-16 sm:h-16 text-gray-300 mx-auto mb-3 sm:mb-4" />
                 <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-1.5 sm:mb-2">No submissions found</h3>
                 <p className="text-sm sm:text-base text-gray-600">Try adjusting your search or filter criteria</p>
+              </div>
+            )}
+
+            {/* Pagination */}
+            {!loading && !error && filteredSubmissions.length > 0 && pagination.pages > 1 && (
+              <div className="mt-6">
+                <Pagination
+                  currentPage={pagination.page}
+                  totalPages={pagination.pages}
+                  totalItems={pagination.total}
+                  itemsPerPage={pagination.limit}
+                  onPageChange={(page) => setPagination(prev => ({ ...prev, page }))}
+                />
               </div>
             )}
           </div>
@@ -383,39 +527,47 @@ const ContactSubmissions: React.FC = () => {
               {/* Status */}
               <div>
                 <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1.5 sm:mb-2">Status</label>
-                <span className={`inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold border-2 ${getStatusColor(selectedSubmission.status)}`}>
-                  {getStatusIcon(selectedSubmission.status)}
-                  {selectedSubmission.status.charAt(0).toUpperCase() + selectedSubmission.status.slice(1)}
+                <span className={`inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold border-2 ${getStatusColor(selectedSubmission.status, selectedSubmission.isRead)}`}>
+                  {getStatusIcon(selectedSubmission.status, selectedSubmission.isRead)}
+                  {getStatusLabel(selectedSubmission.status, selectedSubmission.isRead)}
                 </span>
               </div>
 
               {/* Customer Info */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
-                  <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">Full Name</label>
-                  <p className="text-sm sm:text-base text-gray-900 font-medium">{selectedSubmission.fullName}</p>
+                  <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">Name</label>
+                  <p className="text-sm sm:text-base text-gray-900 font-medium">{selectedSubmission.name}</p>
                 </div>
                 <div>
                   <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">Email</label>
                   <p className="text-sm sm:text-base text-gray-900 font-medium break-all">{selectedSubmission.email}</p>
                 </div>
-                {selectedSubmission.orderNumber && (
+                {selectedSubmission.phone && (
                   <div>
-                    <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">Order Number</label>
-                    <p className="text-sm sm:text-base text-gray-900 font-medium">{selectedSubmission.orderNumber}</p>
+                    <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">Phone</label>
+                    <p className="text-sm sm:text-base text-gray-900 font-medium">{selectedSubmission.phone}</p>
+                  </div>
+                )}
+                {selectedSubmission.category && (
+                  <div>
+                    <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">Category</label>
+                    <p className="text-sm sm:text-base text-gray-900 font-medium">{selectedSubmission.category}</p>
                   </div>
                 )}
                 <div>
                   <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">Submitted Date</label>
-                  <p className="text-sm sm:text-base text-gray-900 font-medium">{selectedSubmission.submittedDate}</p>
+                  <p className="text-sm sm:text-base text-gray-900 font-medium">{formatDate(selectedSubmission.createdAt)}</p>
                 </div>
               </div>
 
               {/* Subject */}
-              <div>
-                <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">Subject</label>
-                <p className="text-base sm:text-lg text-gray-900 font-bold">{selectedSubmission.subject}</p>
-              </div>
+              {selectedSubmission.subject && (
+                <div>
+                  <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">Subject</label>
+                  <p className="text-base sm:text-lg text-gray-900 font-bold">{selectedSubmission.subject}</p>
+                </div>
+              )}
 
               {/* Message */}
               <div>
@@ -428,21 +580,119 @@ const ContactSubmissions: React.FC = () => {
               {/* Actions */}
               <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-3 sm:pt-4 border-t-2 border-gray-200">
                 <button
-                  onClick={() => window.open(`mailto:${selectedSubmission.email}?subject=Re: ${selectedSubmission.subject}`)}
+                  onClick={() => handleReply(selectedSubmission)}
                   className="flex-1 px-4 sm:px-6 py-2.5 sm:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg sm:rounded-xl text-sm sm:text-base font-semibold transition-all duration-200 flex items-center justify-center gap-2"
+                  disabled={actionLoading}
                 >
                   <Mail className="w-4 h-4 sm:w-5 sm:h-5" />
-                  <span>Reply via Email</span>
+                  <span>Send Reply</span>
                 </button>
-                {selectedSubmission.status !== 'responded' && (
+                {selectedSubmission.status !== 'resolved' && selectedSubmission.status !== 'closed' && (
                   <button
-                    onClick={() => handleMarkAsResponded(selectedSubmission.id)}
-                    className="flex-1 px-4 sm:px-6 py-2.5 sm:py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg sm:rounded-xl text-sm sm:text-base font-semibold transition-all duration-200 flex items-center justify-center gap-2"
+                    onClick={() => handleMarkAsResponded(selectedSubmission._id)}
+                    disabled={actionLoading}
+                    className="flex-1 px-4 sm:px-6 py-2.5 sm:py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-lg sm:rounded-xl text-sm sm:text-base font-semibold transition-all duration-200 flex items-center justify-center gap-2"
                   >
-                    <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
-                    <span>Mark as Responded</span>
+                    {actionLoading ? (
+                      <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                    ) : (
+                      <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+                    )}
+                    <span>{actionLoading ? 'Updating...' : 'Mark as Resolved'}</span>
                   </button>
                 )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reply Modal */}
+      {showReplyModal && selectedSubmission && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4">
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 sm:px-6 py-3 sm:py-4">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-base sm:text-lg md:text-xl font-bold text-white">Send Reply</h2>
+                <button
+                  onClick={() => setShowReplyModal(false)}
+                  className="p-1.5 sm:p-2 hover:bg-white/20 rounded-lg transition-all duration-200 flex-shrink-0"
+                  disabled={replySending}
+                >
+                  <XCircle className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+              {/* Recipient Info */}
+              <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-3 sm:p-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 text-sm">
+                  <div>
+                    <span className="font-semibold text-gray-700">To:</span>
+                    <span className="ml-2 text-gray-900">{selectedSubmission.name}</span>
+                  </div>
+                  <div>
+                    <span className="font-semibold text-gray-700">Email:</span>
+                    <span className="ml-2 text-gray-900">{selectedSubmission.email}</span>
+                  </div>
+                  {selectedSubmission.subject && (
+                    <div className="sm:col-span-2">
+                      <span className="font-semibold text-gray-700">Subject:</span>
+                      <span className="ml-2 text-gray-900">Re: {selectedSubmission.subject}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Original Message */}
+              <div>
+                <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1.5 sm:mb-2">Original Message</label>
+                <div className="bg-gray-50 rounded-lg p-3 sm:p-4 border-2 border-gray-200 max-h-32 overflow-y-auto">
+                  <p className="text-xs sm:text-sm text-gray-700 whitespace-pre-line leading-relaxed">{selectedSubmission.message}</p>
+                </div>
+              </div>
+
+              {/* Reply Message */}
+              <div>
+                <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1.5 sm:mb-2">Your Reply *</label>
+                <textarea
+                  value={replyMessage}
+                  onChange={(e) => setReplyMessage(e.target.value)}
+                  placeholder="Type your reply message here..."
+                  rows={8}
+                  className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border-2 border-gray-200 rounded-lg sm:rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all resize-none"
+                  disabled={replySending}
+                />
+                <p className="text-xs text-gray-500 mt-1.5">This message will be sent to {selectedSubmission.email}</p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-3 sm:pt-4 border-t-2 border-gray-200">
+                <button
+                  onClick={() => setShowReplyModal(false)}
+                  disabled={replySending}
+                  className="flex-1 px-4 sm:px-6 py-2.5 sm:py-3 bg-gray-200 hover:bg-gray-300 disabled:bg-gray-100 text-gray-800 disabled:text-gray-400 rounded-lg sm:rounded-xl text-sm sm:text-base font-semibold transition-all duration-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSendReply}
+                  disabled={replySending || !replyMessage.trim()}
+                  className="flex-1 px-4 sm:px-6 py-2.5 sm:py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg sm:rounded-xl text-sm sm:text-base font-semibold transition-all duration-200 flex items-center justify-center gap-2"
+                >
+                  {replySending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                      <span>Sending...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Mail className="w-4 h-4 sm:w-5 sm:h-5" />
+                      <span>Send Reply</span>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           </div>

@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { recyclerAuthService } from '../../services/recyclerAuth';
-import { recyclerAPI } from '../../services/api';
 import { 
   ShoppingBag, 
   LogOut,
@@ -22,9 +20,13 @@ import {
   TrendingUp,
   AlertCircle,
   Phone,
-  Check
+  Check,
+  DollarSign
 } from 'lucide-react';
 import RecyclerSidebar from '../../components/RecyclerSidebar';
+import CounterOfferModal from '../../components/recycler/CounterOfferModal';
+import { recyclerAPI } from '../../services/api';
+import recyclerAuthService from '../../services/recyclerAuth';
 
 interface OrderDevice {
   name: string;
@@ -48,6 +50,15 @@ interface Order {
   shippingAddress: string;
   orderNotes?: string;
   expanded: boolean;
+  counterOffer?: {
+    _id: string;
+    status: string;
+    amendedPrice: number;
+    originalPrice: number;
+    reason: string;
+    createdAt: string;
+    respondedAt?: string;
+  };
 }
 
 const RecyclerOrders: React.FC = () => {
@@ -65,6 +76,19 @@ const RecyclerOrders: React.FC = () => {
   const [paymentStatuses, setPaymentStatuses] = useState<any[]>([]);
 
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [counterOfferModal, setCounterOfferModal] = useState<{
+    isOpen: boolean;
+    order: any | null;
+  }>({
+    isOpen: false,
+    order: null,
+  });
+  const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
+  const [bulkStatus, setBulkStatus] = useState('');
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalOrders, setTotalOrders] = useState(0);
 
   useEffect(() => {
     fetchStatuses();
@@ -73,7 +97,7 @@ const RecyclerOrders: React.FC = () => {
 
   useEffect(() => {
     fetchOrders();
-  }, [statusFilter, paymentFilter]);
+  }, [statusFilter, paymentFilter, currentPage]);
 
   const fetchStatuses = async () => {
     try {
@@ -98,15 +122,20 @@ const RecyclerOrders: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const params: any = {};
+      const params: any = {
+        page: currentPage,
+        limit: 10
+      };
       if (statusFilter !== 'all') params.status = statusFilter;
       if (paymentFilter !== 'all') params.paymentStatus = paymentFilter;
       
       const response = await recyclerAPI.orders.getAll(params);
       
       if (response?.data) {
+        const ordersData = Array.isArray(response.data) ? response.data : response.data.orders || [];
+        
         // Transform backend data to match frontend interface
-        const transformedOrders = response.data.map((order: any) => ({
+        const transformedOrders = ordersData.map((order: any) => ({
           id: order._id,
           orderNumber: order.orderNumber,
           customerName: order.customerName,
@@ -118,22 +147,74 @@ const RecyclerOrders: React.FC = () => {
             condition: order.deviceCondition || 'N/A',
             price: order.amount || 0
           }],
-          totalAmount: order.amount || 0, // Backend uses 'amount' not 'totalAmount'
+          totalAmount: order.amount || 0,
           status: order.status,
           paymentStatus: order.paymentStatus,
           orderDate: order.createdAt,
           deliveryDate: order.deliveryDate,
           shippingAddress: order.shippingAddress || `${order.address || ''}, ${order.city || ''}, ${order.postcode || ''}`.trim().replace(/^,\s*/, '').replace(/,\s*$/, '') || 'N/A',
           orderNotes: order.orderNotes || order.deviceNotes || '',
-          expanded: false
+          expanded: false,
+          counterOffer: order.counterOffer
         }));
         setOrders(transformedOrders);
+        
+        // Set pagination data
+        const total = (response as any).pagination?.total || (response as any).total || transformedOrders.length;
+        setTotalOrders(total);
+        setTotalPages(Math.ceil(total / 10));
       }
     } catch (error: any) {
       console.error('Error fetching orders:', error);
       setError(error.message || 'Failed to load orders');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSelectAll = () => {
+    if (selectedOrders.length === orders.length) {
+      setSelectedOrders([]);
+    } else {
+      setSelectedOrders(orders.map(order => order.id));
+    }
+  };
+
+  const handleSelectOrder = (orderId: string) => {
+    setSelectedOrders(prev => 
+      prev.includes(orderId) 
+        ? prev.filter(id => id !== orderId)
+        : [...prev, orderId]
+    );
+  };
+
+  const handleBulkUpdate = async () => {
+    if (selectedOrders.length === 0) {
+      alert('Please select at least one order');
+      return;
+    }
+    if (!bulkStatus) {
+      alert('Please select a status');
+      return;
+    }
+    if (!confirm(`Update ${selectedOrders.length} orders to "${bulkStatus}"?`)) return;
+
+    setIsBulkUpdating(true);
+    try {
+      const response: any = await recyclerAPI.orders.bulkUpdate(selectedOrders, bulkStatus);
+      if (response.success) {
+        setSuccessMessage(`${response.modifiedCount} orders updated successfully`);
+        setShowSuccessAlert(true);
+        setTimeout(() => setShowSuccessAlert(false), 3000);
+        setSelectedOrders([]);
+        setBulkStatus('');
+        fetchOrders();
+      }
+    } catch (error: any) {
+      console.error('Bulk update error:', error);
+      alert(error.response?.data?.message || 'Failed to update orders');
+    } finally {
+      setIsBulkUpdating(false);
     }
   };
 
@@ -174,26 +255,6 @@ const RecyclerOrders: React.FC = () => {
     }
   };
 
-  const handleUpdatePaymentStatus = async (orderId: string, newPaymentStatus: string) => {
-    try {
-      console.log('Updating payment status:', { orderId, newPaymentStatus });
-      // Update payment status via API
-      await recyclerAPI.orders.updatePaymentStatus(orderId, newPaymentStatus);
-      
-      setOrders(orders.map(order => 
-        order.id === orderId ? { ...order, paymentStatus: newPaymentStatus } : order
-      ));
-      const statusName = newPaymentStatus ? newPaymentStatus.charAt(0).toUpperCase() + newPaymentStatus.slice(1) : 'Unknown';
-      setSuccessMessage(`Payment status updated to ${statusName}`);
-      setShowSuccessAlert(true);
-      setTimeout(() => setShowSuccessAlert(false), 3000);
-    } catch (error: any) {
-      console.error('Error updating payment status:', error);
-      setSuccessMessage(`Failed to update payment status: ${error.message}`);
-      setShowSuccessAlert(true);
-      setTimeout(() => setShowSuccessAlert(false), 3000);
-    }
-  };
 
   const handleDownloadInvoice = (order: Order) => {
     // Create invoice HTML
@@ -338,25 +399,25 @@ const RecyclerOrders: React.FC = () => {
     return colors[statusCode] || colors.pending;
   };
 
-  const getPaymentColor = (statusCode: string) => {
-    const colors: Record<string, { button: string; active: string; icon: any }> = {
-      paid: {
-        button: 'bg-white hover:bg-green-50 text-green-700 border-2 border-green-200 hover:border-green-300',
-        active: 'bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 border-2 border-green-300 cursor-not-allowed',
-        icon: <CheckCircle2 className="w-4 h-4" />
-      },
-      pending: {
-        button: 'bg-white hover:bg-orange-50 text-orange-700 border-2 border-orange-200 hover:border-orange-300',
-        active: 'bg-gradient-to-r from-orange-100 to-orange-200 text-orange-800 border-2 border-orange-300 cursor-not-allowed',
-        icon: <AlertCircle className="w-4 h-4" />
-      },
-      failed: {
-        button: 'bg-white hover:bg-red-50 text-red-700 border-2 border-red-200 hover:border-red-300',
-        active: 'bg-gradient-to-r from-red-100 to-red-200 text-red-800 border-2 border-red-300 cursor-not-allowed',
-        icon: <XCircle className="w-4 h-4" />
-      }
+
+  const getCounterOfferBadge = (status: string) => {
+    const styles: any = {
+      pending: 'bg-gradient-to-r from-amber-50 to-amber-100 text-amber-800 border-amber-300',
+      accepted: 'bg-gradient-to-r from-green-50 to-green-100 text-green-800 border-green-300',
+      declined: 'bg-gradient-to-r from-red-50 to-red-100 text-red-800 border-red-300',
+      expired: 'bg-gradient-to-r from-gray-50 to-gray-100 text-gray-700 border-gray-300',
     };
-    return colors[statusCode] || colors.pending;
+    return styles[status] || styles.pending;
+  };
+
+  const getCounterOfferLabel = (status: string) => {
+    const labels: any = {
+      pending: '⏳ Awaiting Customer Response',
+      accepted: '✓ Customer Accepted',
+      declined: '✗ Customer Declined',
+      expired: '⌛ Offer Expired',
+    };
+    return labels[status] || status;
   };
 
   const getStatusBadge = (status: string) => {
@@ -574,6 +635,50 @@ const RecyclerOrders: React.FC = () => {
             </div>
             )}
 
+            {/* Bulk Actions Toolbar */}
+            {!isLoading && !error && selectedOrders.length > 0 && (
+              <div className="bg-gradient-to-r from-blue-50 to-blue-100 border-2 border-blue-300 rounded-3xl p-5 mb-6 shadow-lg">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
+                      <span className="text-white font-bold text-lg">{selectedOrders.length}</span>
+                    </div>
+                    <div>
+                      <p className="text-base font-bold text-gray-900">{selectedOrders.length} {selectedOrders.length === 1 ? 'order' : 'orders'} selected</p>
+                      <p className="text-xs text-gray-600">Choose a status to update all selected orders</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-3 w-full sm:w-auto">
+                    <select
+                      value={bulkStatus}
+                      onChange={(e) => setBulkStatus(e.target.value)}
+                      className="px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm font-semibold shadow-md"
+                    >
+                      <option value="">Select Status</option>
+                      {orderStatuses.map((status) => (
+                        <option key={status._id} value={status.name}>
+                          {status.label || status.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={handleBulkUpdate}
+                      disabled={!bulkStatus || isBulkUpdating}
+                      className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl text-sm whitespace-nowrap"
+                    >
+                      {isBulkUpdating ? 'Updating...' : 'Update Status'}
+                    </button>
+                    <button
+                      onClick={() => setSelectedOrders([])}
+                      className="px-4 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl font-bold transition-all shadow-md text-sm"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Search and Filters */}
             {!isLoading && !error && (
             <div className="bg-gradient-to-r from-white to-gray-50 rounded-3xl shadow-lg border border-gray-200 p-6 mb-6">
@@ -628,6 +733,28 @@ const RecyclerOrders: React.FC = () => {
             </div>
             )}
 
+            {/* Select All Checkbox */}
+            {!isLoading && !error && filteredOrders.length > 0 && (
+              <div className="bg-white rounded-2xl border-2 border-gray-200 p-4 mb-4 shadow-sm">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedOrders.length === filteredOrders.length && filteredOrders.length > 0}
+                    onChange={handleSelectAll}
+                    className="w-5 h-5 text-blue-600 border-2 border-gray-300 rounded-lg focus:ring-blue-500 cursor-pointer"
+                  />
+                  <span className="text-sm font-bold text-gray-700">
+                    Select All Orders ({filteredOrders.length})
+                  </span>
+                  {selectedOrders.length > 0 && (
+                    <span className="ml-auto text-sm font-semibold text-blue-600">
+                      {selectedOrders.length} selected
+                    </span>
+                  )}
+                </label>
+              </div>
+            )}
+
             {/* Orders List */}
             {!isLoading && !error && (
             <div className="space-y-5">
@@ -648,19 +775,30 @@ const RecyclerOrders: React.FC = () => {
                     {/* Order Header */}
                     <div className="relative z-10 p-6">
                       <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-3">
-                            <div className="w-12 h-12 bg-gradient-to-br from-[#1b981b] to-[#157a15] rounded-xl flex items-center justify-center shadow-lg">
-                              <ShoppingBag className="w-6 h-6 text-white" />
-                            </div>
-                            <div>
-                              <h3 className="text-lg font-bold text-gray-800">{order.orderNumber}</h3>
-                              <p className="text-sm text-gray-500 flex items-center gap-2">
-                                <Calendar className="w-3 h-3" />
-                                {new Date(order.orderDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                              </p>
-                            </div>
+                        <div className="flex items-start gap-4 flex-1">
+                          {/* Checkbox */}
+                          <div className="mt-1">
+                            <input
+                              type="checkbox"
+                              checked={selectedOrders.includes(order.id)}
+                              onChange={() => handleSelectOrder(order.id)}
+                              className="w-5 h-5 text-blue-600 border-2 border-gray-300 rounded-lg focus:ring-blue-500 cursor-pointer"
+                            />
                           </div>
+                          
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-3">
+                              <div className="w-12 h-12 bg-gradient-to-br from-[#1b981b] to-[#157a15] rounded-xl flex items-center justify-center shadow-lg">
+                                <ShoppingBag className="w-6 h-6 text-white" />
+                              </div>
+                              <div>
+                                <h3 className="text-lg font-bold text-gray-800">{order.orderNumber}</h3>
+                                <p className="text-sm text-gray-500 flex items-center gap-2">
+                                  <Calendar className="w-3 h-3" />
+                                  {new Date(order.orderDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                </p>
+                              </div>
+                            </div>
                           
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div className="flex items-start gap-2">
@@ -689,6 +827,7 @@ const RecyclerOrders: React.FC = () => {
                                 </p>
                               </div>
                             </div>
+                          </div>
                           </div>
                         </div>
                         
@@ -788,19 +927,71 @@ const RecyclerOrders: React.FC = () => {
                               </div>
                             )}
 
-                            <button 
-                              onClick={() => handleDownloadInvoice(order)}
-                              className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-gray-700 to-gray-800 hover:from-gray-800 hover:to-gray-900 text-white rounded-xl font-bold transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
-                            >
-                              <Download className="w-4 h-4" />
-                              Download Invoice
-                            </button>
+                            {/* Counter Offer Status */}
+                            {order.counterOffer && (
+                              <div className={`rounded-2xl p-5 border-2 shadow-lg ${getCounterOfferBadge(order.counterOffer.status)}`}>
+                                <h4 className="text-sm font-bold mb-3 uppercase tracking-wide flex items-center gap-2">
+                                  <DollarSign className="w-5 h-5" />
+                                  Counter Offer Status
+                                </h4>
+                                <div className="space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-sm font-semibold">Status:</span>
+                                    <span className="text-lg font-bold">{getCounterOfferLabel(order.counterOffer.status)}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-sm font-semibold">Original Price:</span>
+                                    <span className="text-sm font-bold">£{order.counterOffer.originalPrice.toFixed(2)}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-sm font-semibold">Counter Offer Price:</span>
+                                    <span className="text-lg font-bold">£{order.counterOffer.amendedPrice.toFixed(2)}</span>
+                                  </div>
+                                  <div className="pt-2 border-t border-current/20">
+                                    <p className="text-xs opacity-80">
+                                      Created: {new Date(order.counterOffer.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                    </p>
+                                    {order.counterOffer.respondedAt && (
+                                      <p className="text-xs opacity-80">
+                                        Response: {new Date(order.counterOffer.respondedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="space-y-3">
+                              <button 
+                                onClick={() => setCounterOfferModal({
+                                  isOpen: true,
+                                  order: {
+                                    id: order.id,
+                                    orderNumber: order.orderNumber,
+                                    customerName: order.customerName,
+                                    deviceName: order.devices[0]?.name,
+                                    amount: order.totalAmount,
+                                  }
+                                })}
+                                disabled={order.status === 'counter_offer_pending' || order.status === 'completed' || order.status === 'cancelled'}
+                                className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl font-bold transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <DollarSign className="w-4 h-4" />
+                                Counter Offer
+                              </button>
+                              <button 
+                                onClick={() => handleDownloadInvoice(order)}
+                                className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-gray-700 to-gray-800 hover:from-gray-800 hover:to-gray-900 text-white rounded-xl font-bold transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+                              >
+                                <Download className="w-4 h-4" />
+                                Download Invoice
+                              </button>
+                            </div>
                           </div>
                         </div>
 
-                        {/* Order & Payment Status Management */}
-                        <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-                          {/* Order Status Management */}
+                        {/* Order Status Management */}
+                        <div className="mt-6">
                           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 border-2 border-blue-200 shadow-lg">
                             <h4 className="text-sm font-bold text-gray-800 mb-4 uppercase tracking-wide flex items-center gap-2">
                               <Truck className="w-5 h-5 text-blue-600" />
@@ -828,39 +1019,9 @@ const RecyclerOrders: React.FC = () => {
                                 );
                               })}
                             </div>
-                          </div>
-
-                          {/* Payment Status Management */}
-                          <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-6 border-2 border-purple-200 shadow-lg">
-                            <h4 className="text-sm font-bold text-gray-800 mb-4 uppercase tracking-wide flex items-center gap-2">
-                              <CreditCard className="w-5 h-5 text-purple-600" />
-                              Manage Payment Status
-                            </h4>
-                            <div className="space-y-2">
-                              {paymentStatuses.map((status) => {
-                                const colorConfig = getPaymentColor(status.name);
-                                const isActive = order.paymentStatus === status.name;
-                                return (
-                                  <button
-                                    key={status._id}
-                                    onClick={() => handleUpdatePaymentStatus(order.id, status.name)}
-                                    disabled={isActive}
-                                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm transition-all hover:shadow-md transform hover:-translate-y-0.5 ${
-                                      isActive ? colorConfig.active : colorConfig.button
-                                    }`}
-                                  >
-                                    <span className="flex items-center gap-2">
-                                      {colorConfig.icon}
-                                      {status.label || status.name}
-                                    </span>
-                                    {isActive && <span className="flex items-center gap-1 text-xs"><Check className="w-3 h-3" /> Current</span>}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                            <div className="mt-4 p-3 bg-white/60 rounded-xl border border-purple-200">
+                            <div className="mt-4 p-3 bg-white/60 rounded-xl border border-blue-200">
                               <p className="text-xs text-gray-600 leading-relaxed">
-                                <strong>Note:</strong> Payment status changes are reflected immediately and can affect revenue calculations.
+                                <strong>Note:</strong> Payment status is automatically set to "Paid" when order is "Completed", otherwise it's "Pending".
                               </p>
                             </div>
                           </div>
@@ -872,9 +1033,96 @@ const RecyclerOrders: React.FC = () => {
               )}
             </div>
             )}
+
+            {/* Pagination Controls */}
+            {!isLoading && !error && filteredOrders.length > 0 && totalPages > 1 && (
+              <div className="bg-white rounded-3xl border-2 border-gray-200 p-6 shadow-lg mt-6">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="text-sm text-gray-600 font-medium">
+                    Showing <span className="font-bold text-gray-900">{((currentPage - 1) * 10) + 1}</span> to{' '}
+                    <span className="font-bold text-gray-900">{Math.min(currentPage * 10, totalOrders)}</span> of{' '}
+                    <span className="font-bold text-gray-900">{totalOrders}</span> orders
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                      className="px-4 py-2 border-2 border-gray-200 rounded-xl font-bold text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    >
+                      First
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                      className="px-4 py-2 border-2 border-gray-200 rounded-xl font-bold text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    >
+                      Previous
+                    </button>
+                    
+                    <div className="flex items-center gap-1">
+                      {[...Array(Math.min(5, totalPages))].map((_, idx) => {
+                        let pageNum;
+                        if (totalPages <= 5) {
+                          pageNum = idx + 1;
+                        } else if (currentPage <= 3) {
+                          pageNum = idx + 1;
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + idx;
+                        } else {
+                          pageNum = currentPage - 2 + idx;
+                        }
+                        
+                        return (
+                          <button
+                            key={pageNum}
+                            onClick={() => setCurrentPage(pageNum)}
+                            className={`w-10 h-10 rounded-xl font-bold text-sm transition-all ${
+                              currentPage === pageNum
+                                ? 'bg-gradient-to-r from-[#1b981b] to-[#157a15] text-white shadow-lg'
+                                : 'border-2 border-gray-200 hover:bg-gray-50'
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                      className="px-4 py-2 border-2 border-gray-200 rounded-xl font-bold text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    >
+                      Next
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                      className="px-4 py-2 border-2 border-gray-200 rounded-xl font-bold text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    >
+                      Last
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </main>
       </div>
+
+      {/* Counter Offer Modal */}
+      {counterOfferModal.order && (
+        <CounterOfferModal
+          isOpen={counterOfferModal.isOpen}
+          onClose={() => setCounterOfferModal({ isOpen: false, order: null })}
+          order={counterOfferModal.order}
+          onSuccess={() => {
+            fetchOrders();
+            setCounterOfferModal({ isOpen: false, order: null });
+          }}
+        />
+      )}
     </div>
   );
 };

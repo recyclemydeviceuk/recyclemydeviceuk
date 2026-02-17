@@ -81,7 +81,7 @@ const RecyclerDevicesAccepted: React.FC = () => {
     try {
       const params: any = {
         page: currentPage,
-        limit: 20
+        limit: 10
       };
       
       if (debouncedSearchQuery) params.search = debouncedSearchQuery;
@@ -128,7 +128,7 @@ const RecyclerDevicesAccepted: React.FC = () => {
         setDevices(transformedDevices);
         const total = (response as any).pagination?.total || (response as any).total || transformedDevices.length;
         setTotalDevices(total);
-        setTotalPages(Math.ceil(total / 20));
+        setTotalPages(Math.ceil(total / 10));
       }
     } catch (error: any) {
       console.error('Error fetching devices:', error);
@@ -806,9 +806,12 @@ const RecyclerDevicesAccepted: React.FC = () => {
                       <div className="relative">
                         <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-md p-2">
                           <img 
-                            src="https://storage.googleapis.com/atomjuice-product-images/apple/iphone-16-pro/default.png" 
+                            src={device.image} 
                             alt={device.model}
                             className="w-full h-full object-contain"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = 'https://storage.googleapis.com/atomjuice-product-images/apple/iphone-16-pro/default.png';
+                            }}
                           />
                         </div>
                         {device.selected && (

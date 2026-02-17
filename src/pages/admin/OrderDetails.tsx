@@ -29,7 +29,6 @@ const OrderDetailsPage: React.FC = () => {
   const [orderData, setOrderData] = useState<OrderDetails | null>(null);
   const [editData, setEditData] = useState<OrderDetails | null>(null);
   const [orderStatuses, setOrderStatuses] = useState<any[]>([]);
-  const [paymentStatuses, setPaymentStatuses] = useState<any[]>([]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -37,18 +36,14 @@ const OrderDetailsPage: React.FC = () => {
       
       try {
         // Fetch statuses and order data in parallel
-        const [orderRes, orderStatusRes, paymentStatusRes]: any[] = await Promise.all([
+        const [orderRes, orderStatusRes]: any[] = await Promise.all([
           adminAPI.orders.getById(id),
-          adminAPI.utilities.getOrderStatuses(),
-          adminAPI.utilities.getPaymentStatuses()
+          adminAPI.utilities.getOrderStatuses()
         ]);
 
         // Set statuses
         if (orderStatusRes.success) {
           setOrderStatuses(orderStatusRes.data);
-        }
-        if (paymentStatusRes.success) {
-          setPaymentStatuses(paymentStatusRes.data);
         }
         
         // Set order data
@@ -98,11 +93,8 @@ const OrderDetailsPage: React.FC = () => {
     if (!editData || !id) return;
     
     try {
-      // Update order status
+      // Update order status (payment status is automatic based on order status)
       await adminAPI.orders.updateStatus(id, editData.status, editData.notes);
-      
-      // Update payment status
-      await adminAPI.orders.updatePaymentStatus(id, editData.paymentStatus);
       
       setOrderData(editData);
       setIsEditing(false);
@@ -253,23 +245,14 @@ const OrderDetailsPage: React.FC = () => {
                   <h2 className="text-lg font-bold text-white">Payment Status</h2>
                 </div>
                 <div className="p-6">
-                  {isEditing ? (
-                    <select
-                      value={editData.paymentStatus}
-                      onChange={(e) => handleInputChange('paymentStatus', e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1b981b] bg-white cursor-pointer"
-                    >
-                      {paymentStatuses.map((status) => (
-                        <option key={status.name} value={status.name}>
-                          {status.label || status.name.charAt(0).toUpperCase() + status.name.slice(1)}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <span className={`inline-flex px-4 py-2 rounded-full text-sm font-semibold ${getPaymentStatusColor(orderData.paymentStatus)}`}>
-                      {orderData.paymentStatus.charAt(0).toUpperCase() + orderData.paymentStatus.slice(1)}
-                    </span>
-                  )}
+                  <span className={`inline-flex px-4 py-2 rounded-full text-sm font-semibold ${getPaymentStatusColor(orderData.paymentStatus)}`}>
+                    {orderData.paymentStatus.charAt(0).toUpperCase() + orderData.paymentStatus.slice(1)}
+                  </span>
+                  <div className="mt-4 p-3 bg-blue-50 rounded-xl border border-blue-200">
+                    <p className="text-xs text-gray-600 leading-relaxed">
+                      <strong>Note:</strong> Payment status is automatically set to "Paid" when order is "Completed", otherwise it's "Pending".
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>

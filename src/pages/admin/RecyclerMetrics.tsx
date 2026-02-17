@@ -6,7 +6,7 @@ import {
   TrendingUp, 
   Users, 
   Smartphone, 
-  DollarSign, 
+  PoundSterling, 
   Package, 
   Calendar, 
   ArrowUpRight, 
@@ -37,7 +37,7 @@ interface RecyclerMetric {
   status: 'active' | 'inactive';
   totalCustomers: number;
   totalDevicesPurchased: number;
-  totalSpent: number;
+  totalPayout: number;
   averageDevicePrice: number;
   lastPurchaseDate: string;
   growthRate: number;
@@ -170,8 +170,8 @@ const RecyclerMetrics: React.FC = () => {
 
   // Find top performer
   const topPerformer = recyclerMetrics.length > 0 
-    ? recyclerMetrics.reduce((prev, current) => prev.totalSpent > current.totalSpent ? prev : current)
-    : { companyName: 'N/A', totalSpent: 0 };
+    ? recyclerMetrics.reduce((prev, current) => prev.totalPayout > current.totalPayout ? prev : current)
+    : { companyName: 'N/A', totalPayout: 0 };
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -262,9 +262,9 @@ const RecyclerMetrics: React.FC = () => {
                 <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -mr-10 -mt-10 blur-xl"></div>
                 <div className="relative z-10">
                   <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center mb-3">
-                    <DollarSign className="w-5 h-5 text-white" />
+                    <PoundSterling className="w-5 h-5 text-white" />
                   </div>
-                  <p className="text-xs text-orange-100 font-medium mb-1">Total Spent</p>
+                  <p className="text-xs text-orange-100 font-medium mb-1">Total Payout</p>
                   <p className="text-3xl font-bold text-white">£{Math.floor(totalRevenue).toLocaleString()}</p>
                 </div>
               </div>
@@ -393,10 +393,10 @@ const RecyclerMetrics: React.FC = () => {
 
                       <div className="bg-green-50/80 rounded-2xl p-3 border border-green-100">
                         <div className="flex items-center gap-1.5 mb-1">
-                          <DollarSign className="w-3.5 h-3.5 text-green-600" />
-                          <p className="text-[10px] font-semibold text-green-600 uppercase tracking-wide">Spent</p>
+                          <PoundSterling className="w-3.5 h-3.5 text-green-600" />
+                          <p className="text-[10px] font-semibold text-green-600 uppercase tracking-wide">Payout</p>
                         </div>
-                        <p className="text-xl font-bold text-gray-800">£{Math.floor(metric.totalSpent).toLocaleString()}</p>
+                        <p className="text-xl font-bold text-gray-800">£{Math.floor(metric.totalPayout).toLocaleString()}</p>
                       </div>
 
                       <div className="bg-orange-50/80 rounded-2xl p-3 border border-orange-100">

@@ -221,9 +221,6 @@ export const adminAPI = {
     updateStatus: (id: string, status: string, notes?: string) => 
       api.put(`/admin/orders/${id}/status`, { status, notes }),
     
-    updatePaymentStatus: (id: string, paymentStatus: string, transactionId?: string, paymentNotes?: string) => 
-      api.put(`/admin/orders/${id}/payment-status`, { paymentStatus, transactionId, paymentNotes }),
-    
     assignRecycler: (orderId: string, recyclerId: string) => 
       api.put(`/admin/orders/${orderId}/assign-recycler`, { recyclerId }),
     
@@ -604,8 +601,8 @@ export const recyclerAPI = {
     updateStatus: (id: string, status: string, notes?: string) => 
       api.patch(`/recycler/orders/${id}/status`, { status, notes }),
     
-    updatePaymentStatus: (id: string, paymentStatus: string) => 
-      api.patch(`/recycler/orders/${id}/payment-status`, { paymentStatus }),
+    bulkUpdate: (orderIds: string[], status: string) => 
+      api.post('/recycler/orders/bulk-update', { orderIds, status }),
     
     submitInspection: (orderId: string, inspectionData: any) => 
       api.post(`/recycler/orders/${orderId}/inspection`, inspectionData),
@@ -759,4 +756,29 @@ export const blogAPI = {
   
   getRecent: (limit?: number) =>
     api.get('/customer/blogs/recent', { params: { limit } }),
+};
+
+export const counterOfferAPI = {
+  create: (data: { orderId: string; amendedPrice: number; reason: string; images?: any[] }) =>
+    api.post('/counter-offers', data),
+  
+  uploadImages: (files: File[]) => {
+    const formData = new FormData();
+    files.forEach(file => formData.append('images', file));
+    return api.post('/counter-offers/upload-images', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  
+  getByToken: (token: string) =>
+    api.get(`/counter-offers/token/${token}`),
+  
+  accept: (token: string, customerNotes?: string) =>
+    api.post(`/counter-offers/${token}/accept`, { customerNotes }),
+  
+  decline: (token: string, customerNotes?: string) =>
+    api.post(`/counter-offers/${token}/decline`, { customerNotes }),
+  
+  getByOrder: (orderId: string) =>
+    api.get(`/counter-offers/order/${orderId}`),
 };

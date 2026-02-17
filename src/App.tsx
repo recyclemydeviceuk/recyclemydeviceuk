@@ -43,6 +43,7 @@ import RecyclerReviews from './pages/recycler/RecyclerReviews';
 import AdminReviews from './pages/admin/AdminReviews';
 import AddBlogPost from './pages/admin/AddBlogPost';
 import EditBlogPost from './pages/admin/EditBlogPost';
+import CounterOffer from './pages/CounterOffer';
 import ScrollToTop from './components/ScrollToTop';
 import { RecyclerProvider } from './contexts/RecyclerContext';
 
@@ -66,6 +67,7 @@ function App() {
         <Route path="/become-a-seller" element={<BecomeASeller />} />
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
+        <Route path="/counter-offer/:token" element={<CounterOffer />} />
         
         {/* Recycler Routes */}
         <Route path="/recycler/login" element={<RecyclerLogin />} />

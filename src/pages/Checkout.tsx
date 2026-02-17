@@ -427,7 +427,7 @@ export default function Checkout() {
               {/* Total */}
               <div className="flex justify-between items-center mb-6">
                 <span className="text-lg font-bold text-gray-900">You'll Receive</span>
-                <span className="text-3xl font-bold text-primary">£{Math.round(cartItem.price)}</span>
+                <span className="text-3xl font-bold text-primary">£{Number(cartItem.price).toFixed(2)}</span>
               </div>
 
               {/* Benefits */}

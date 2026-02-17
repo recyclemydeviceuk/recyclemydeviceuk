@@ -7,7 +7,7 @@ import {
   Smartphone, 
   ShoppingBag, 
   TrendingUp, 
-  DollarSign,
+  PoundSterling,
   Package,
   Clock,
   ArrowUpRight,
@@ -49,7 +49,7 @@ const RecyclerDashboard: React.FC = () => {
         const data = statsResponse.data;
         setStats({
           totalDevicesPurchased: data.orders?.total || 0,
-          totalSpent: data.revenue?.total || 0,
+          totalPayout: data.revenue?.total || 0,
           averagePrice: data.orders?.total > 0 ? (data.revenue?.total / data.orders?.total) : 0,
           activeOrders: (data.orders?.pending || 0) + (data.orders?.processing || 0),
           completedOrders: data.orders?.completed || 0,
@@ -86,7 +86,7 @@ const RecyclerDashboard: React.FC = () => {
 
   const [stats, setStats] = useState({
     totalDevicesPurchased: 0,
-    totalSpent: 0,
+    totalPayout: 0,
     averagePrice: 0,
     activeOrders: 0,
     completedOrders: 0,
@@ -240,20 +240,20 @@ const RecyclerDashboard: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Total Spent */}
+                {/* Total Payout */}
                 <div className="group relative overflow-hidden bg-gradient-to-br from-white to-gray-50 rounded-2xl border-2 border-green-200 hover:border-green-300 shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer transform hover:-translate-y-1">
                   <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-green-400/20 to-green-500/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
                   <div className="relative z-10 p-6">
                     <div className="flex items-center justify-between mb-4">
                       <div className="w-14 h-14 bg-gradient-to-br from-[#1b981b] to-[#157a15] rounded-2xl flex items-center justify-center shadow-lg">
-                        <DollarSign className="w-7 h-7 text-white" />
+                        <PoundSterling className="w-7 h-7 text-white" />
                       </div>
                       <div className="px-3 py-1.5 bg-green-50 rounded-lg border border-green-200">
                         <span className="text-xs font-bold text-green-600">Active</span>
                       </div>
                     </div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Total Spent</p>
-                    <p className="text-3xl font-bold bg-gradient-to-r from-[#1b981b] to-[#157a15] bg-clip-text text-transparent mb-1">£{Math.round(stats.totalSpent).toLocaleString()}</p>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Total Payout</p>
+                    <p className="text-3xl font-bold bg-gradient-to-r from-[#1b981b] to-[#157a15] bg-clip-text text-transparent mb-1">£{Math.round(stats.totalPayout).toLocaleString()}</p>
                     <p className="text-xs text-gray-500">Avg: £{Math.round(stats.averagePrice)} per device</p>
                   </div>
                 </div>

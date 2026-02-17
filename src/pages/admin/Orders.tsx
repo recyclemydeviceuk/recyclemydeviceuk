@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Download, Eye, Trash2, Search, Package } from 'lucide-react';
+import { Package, Search, Download, Eye, Trash2, LogOut } from 'lucide-react';
 import AdminSidebar from '../../components/AdminSidebar';
 import Pagination from '../../components/Pagination';
 import { adminAPI } from '../../services/api';
@@ -26,6 +26,13 @@ interface Order {
   status: string;
   paymentStatus: string;
   createdAt: string;
+  counterOffer?: {
+    _id: string;
+    status: string;
+    amendedPrice: number;
+    originalPrice: number;
+    createdAt: string;
+  };
 }
 
 const Orders: React.FC = () => {
@@ -49,6 +56,9 @@ const Orders: React.FC = () => {
     total: 0,
     pages: 0
   });
+  const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
+  const [bulkStatus, setBulkStatus] = useState('');
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
 
   // Debounce search query
   useEffect(() => {
@@ -179,6 +189,50 @@ const Orders: React.FC = () => {
     }
   };
 
+  const handleSelectAll = () => {
+    if (selectedOrders.length === orders.length) {
+      setSelectedOrders([]);
+    } else {
+      setSelectedOrders(orders.map(order => order._id));
+    }
+  };
+
+  const handleSelectOrder = (orderId: string) => {
+    setSelectedOrders(prev => 
+      prev.includes(orderId) 
+        ? prev.filter(id => id !== orderId)
+        : [...prev, orderId]
+    );
+  };
+
+  const handleBulkUpdate = async () => {
+    if (selectedOrders.length === 0) {
+      alert('Please select at least one order');
+      return;
+    }
+    if (!bulkStatus) {
+      alert('Please select a status');
+      return;
+    }
+    if (!confirm(`Update ${selectedOrders.length} orders to "${bulkStatus}"?`)) return;
+
+    setIsBulkUpdating(true);
+    try {
+      const response: any = await adminAPI.orders.bulkUpdate(selectedOrders, bulkStatus);
+      if (response.success) {
+        alert(`${response.modifiedCount} orders updated successfully`);
+        setSelectedOrders([]);
+        setBulkStatus('');
+        fetchOrders();
+      }
+    } catch (error: any) {
+      console.error('Bulk update error:', error);
+      alert(error.response?.data?.message || 'Failed to update orders');
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
+
   const handleLogout = () => {
     sessionStorage.removeItem('adminAuth');
     sessionStorage.removeItem('adminEmail');
@@ -204,6 +258,26 @@ const Orders: React.FC = () => {
       failed: 'bg-red-100 text-red-700',
     };
     return colors[status] || 'bg-gray-100 text-gray-700';
+  };
+
+  const getCounterOfferColor = (status: string) => {
+    const colors: any = {
+      pending: 'bg-amber-100 text-amber-700 border-amber-300',
+      accepted: 'bg-green-100 text-green-700 border-green-300',
+      declined: 'bg-red-100 text-red-700 border-red-300',
+      expired: 'bg-gray-100 text-gray-700 border-gray-300',
+    };
+    return colors[status] || 'bg-gray-100 text-gray-700 border-gray-300';
+  };
+
+  const getCounterOfferLabel = (status: string) => {
+    const labels: any = {
+      pending: '⏳ Waiting',
+      accepted: '✓ Accepted',
+      declined: '✗ Declined',
+      expired: 'Expired',
+    };
+    return labels[status] || status;
   };
 
   return (
@@ -269,6 +343,50 @@ const Orders: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* Bulk Actions Toolbar */}
+          {selectedOrders.length > 0 && (
+            <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-4 mb-6 shadow-lg">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">{selectedOrders.length}</span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-gray-900">{selectedOrders.length} {selectedOrders.length === 1 ? 'order' : 'orders'} selected</p>
+                    <p className="text-xs text-gray-600">Choose an action below</p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-3 w-full sm:w-auto">
+                  <select
+                    value={bulkStatus}
+                    onChange={(e) => setBulkStatus(e.target.value)}
+                    className="px-4 py-2 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm font-medium"
+                  >
+                    <option value="">Select Status</option>
+                    {orderStatuses.map((status) => (
+                      <option key={status.name} value={status.name}>
+                        {status.label || status.name.charAt(0).toUpperCase() + status.name.slice(1)}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={handleBulkUpdate}
+                    disabled={!bulkStatus || isBulkUpdating}
+                    className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm whitespace-nowrap"
+                  >
+                    {isBulkUpdating ? 'Updating...' : 'Update Status'}
+                  </button>
+                  <button
+                    onClick={() => setSelectedOrders([])}
+                    className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl font-semibold transition-all text-sm"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Filters and Search */}
           <div className="bg-white rounded-2xl border-2 border-gray-200 p-6 mb-6 shadow-lg">
@@ -346,6 +464,14 @@ const Orders: React.FC = () => {
                 <table className="w-full">
                   <thead className="bg-gray-50">
                     <tr>
+                      <th className="px-6 py-4 text-left">
+                        <input
+                          type="checkbox"
+                          checked={selectedOrders.length === orders.length && orders.length > 0}
+                          onChange={handleSelectAll}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                        />
+                      </th>
                       <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Order ID</th>
                       <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Customer</th>
                       <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Device</th>
@@ -353,12 +479,21 @@ const Orders: React.FC = () => {
                       <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Offer Price</th>
                       <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Status</th>
                       <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Payment</th>
+                      <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Counter Offer</th>
                       <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y-2 divide-gray-200">
                     {orders.map((order) => (
                       <tr key={order._id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-4">
+                          <input
+                            type="checkbox"
+                            checked={selectedOrders.includes(order._id)}
+                            onChange={() => handleSelectOrder(order._id)}
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                          />
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="text-sm font-semibold text-[#1b981b]">{order.orderNumber}</span>
                         </td>
@@ -389,6 +524,20 @@ const Orders: React.FC = () => {
                           <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getPaymentColor(order.paymentStatus)}`}>
                             {order.paymentStatus.charAt(0).toUpperCase() + order.paymentStatus.slice(1)}
                           </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {order.counterOffer ? (
+                            <div className="flex flex-col gap-1">
+                              <span className={`px-3 py-1 rounded-lg text-xs font-semibold border-2 ${getCounterOfferColor(order.counterOffer.status)}`}>
+                                {getCounterOfferLabel(order.counterOffer.status)}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                £{order.counterOffer.amendedPrice.toFixed(2)}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400">-</span>
+                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center space-x-2">

@@ -148,11 +148,12 @@ export default function Hero() {
   useEffect(() => {
     const fetchFeaturedDevice = async () => {
       try {
-        // Get the first/latest device from database (no search filter)
+        // Get all devices from database
         const devicesResponse = await deviceAPI.getAllDevices();
         if (devicesResponse.success && devicesResponse.data && devicesResponse.data.length > 0) {
-          // Pick the first device (most recent)
-          const device = devicesResponse.data[0];
+          // Pick a random device from the list
+          const randomIndex = Math.floor(Math.random() * devicesResponse.data.length);
+          const device = devicesResponse.data[randomIndex];
           setFeaturedDevice(device);
 
           // Fetch pricing for the device with first storage option and 'Good' condition

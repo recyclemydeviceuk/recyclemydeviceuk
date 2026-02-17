@@ -150,7 +150,7 @@ export default function OrderConfirmation() {
           <div className="border-t pt-4">
             <div className="flex justify-between items-center">
               <span className="text-lg font-semibold text-gray-900">You'll Receive</span>
-              <span className="text-3xl font-bold text-primary">£{orderData.amount}</span>
+              <span className="text-3xl font-bold text-primary">£{Number(orderData.amount).toFixed(2)}</span>
             </div>
           </div>
         </div>

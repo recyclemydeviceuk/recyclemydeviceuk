@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, Link, useParams } from 'react-router-dom';
-import { ChevronDown, Star, Clock, CreditCard, Lock, Package, ArrowLeft, Check, AlertCircle, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronDown, Star, Clock, CreditCard, Lock, Package, ArrowLeft, Check, AlertCircle, Loader2 } from 'lucide-react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { useCart } from '../contexts/CartContext';
@@ -48,27 +48,74 @@ export default function PhoneDetail() {
   const [selectedCondition, setSelectedCondition] = useState('Good');
   const [isConditionOpen, setIsConditionOpen] = useState(false);
   const [showAlert, setShowAlert] = useState(false);
-  const [currentPage, setCurrentPage] = useState(0);
   const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
+  const [expandedNames, setExpandedNames] = useState<Set<string>>(new Set());
   
-  const itemsPerPage = 2;
-  const totalPages = Math.ceil(offers.length / itemsPerPage);
-  const paginatedOffers = offers.slice(
-    currentPage * itemsPerPage,
-    (currentPage + 1) * itemsPerPage
-  );
+  // Infinite scroll states
+  const [displayedCount, setDisplayedCount] = useState(6);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
-  const handlePrevPage = () => {
-    setCurrentPage((prev) => Math.max(0, prev - 1));
+  const toggleNameExpansion = (recyclerId: string) => {
+    setExpandedNames(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(recyclerId)) {
+        newSet.delete(recyclerId);
+      } else {
+        newSet.add(recyclerId);
+      }
+      return newSet;
+    });
   };
 
-  const handleNextPage = () => {
-    setCurrentPage((prev) => Math.min(totalPages - 1, prev + 1));
-  };
+  // Load more offers function
+  const loadMoreOffers = useCallback(() => {
+    if (isLoadingMore || displayedCount >= offers.length) return;
+    
+    setIsLoadingMore(true);
+    setTimeout(() => {
+      setDisplayedCount(prev => Math.min(prev + 6, offers.length));
+      setIsLoadingMore(false);
+    }, 500); // Small delay for smooth UX
+  }, [isLoadingMore, displayedCount, offers.length]);
 
-  // Reset to first page and select first offer when offers change
+  // Setup intersection observer for infinite scroll
   useEffect(() => {
-    setCurrentPage(0);
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          loadMoreOffers();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+    };
+  }, [loadMoreOffers]);
+
+  // Observe load more trigger
+  useEffect(() => {
+    const currentObserver = observerRef.current;
+    const currentRef = loadMoreRef.current;
+
+    if (currentObserver && currentRef) {
+      currentObserver.observe(currentRef);
+    }
+
+    return () => {
+      if (currentObserver && currentRef) {
+        currentObserver.unobserve(currentRef);
+      }
+    };
+  }, [offers.length, displayedCount]);
+
+  // Select first offer when offers change
+  useEffect(() => {
     if (offers.length > 0) {
       setSelectedOffer(offers[0]);
     }
@@ -109,6 +156,9 @@ export default function PhoneDetail() {
       if (!id || !selectedStorage || !selectedCondition) return;
 
       try {
+        // Reset displayed count when filters change
+        setDisplayedCount(6);
+        
         const pricingResponse: any = await pricingAPI.getDevicePrices(
           id,
           selectedStorage,
@@ -378,66 +428,65 @@ export default function PhoneDetail() {
                   {conditionDescriptions[selectedCondition] || 'Select a condition'}
                 </p>
               </div>
+
+              {/* Why Choose Us - Moved to left sidebar */}
+              <div className="mt-6 sm:mt-8 bg-gray-50 rounded-lg sm:rounded-xl p-4 sm:p-6">
+                <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-3 sm:mb-4">Why Choose Us</h3>
+                <div className="space-y-2.5 sm:space-y-3">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-[#1b981b] rounded-full flex-shrink-0"></div>
+                    <Lock className="w-4 h-4 sm:w-5 sm:h-5 text-[#1b981b] flex-shrink-0" />
+                    <p className="text-xs sm:text-sm font-medium text-gray-700">Secure checkout with SSL encryption</p>
+                  </div>
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-[#1b981b] rounded-full flex-shrink-0"></div>
+                    <Package className="w-4 h-4 sm:w-5 sm:h-5 text-[#1b981b] flex-shrink-0" />
+                    <p className="text-xs sm:text-sm font-medium text-gray-700">Free postage with tracked delivery</p>
+                  </div>
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-[#1b981b] rounded-full flex-shrink-0"></div>
+                    <CreditCard className="w-4 h-4 sm:w-5 sm:h-5 text-[#1b981b] flex-shrink-0" />
+                    <p className="text-xs sm:text-sm font-medium text-gray-700">Fast payment within 24 hours</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
           {/* Right - Compare Offers */}
           <div className="lg:col-span-2">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-6 gap-3">
-              <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Compare Offers</h2>
-              <div className="flex items-center gap-3 sm:gap-4">
-                <span className="text-xs sm:text-sm text-gray-600">{offers.length} offers</span>
-                {totalPages > 1 && (
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={handlePrevPage}
-                      disabled={currentPage === 0}
-                      className="p-1.5 sm:p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                    </button>
-                    <span className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">
-                      {currentPage + 1} / {totalPages}
-                    </span>
-                    <button
-                      onClick={handleNextPage}
-                      disabled={currentPage === totalPages - 1}
-                      className="p-1.5 sm:p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                    </button>
-                  </div>
-                )}
-              </div>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-6 gap-2">
+              <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">Compare Offers</h2>
+              <span className="text-xs sm:text-sm text-gray-600 font-medium">{offers.length} {offers.length === 1 ? 'offer' : 'offers'} available</span>
             </div>
 
-            <div className="space-y-3 sm:space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
               {offers.length === 0 ? (
-                <div className="bg-white rounded-xl border border-gray-200 p-8 sm:p-12 text-center">
-                  <p className="text-sm sm:text-base text-gray-600">No offers available for the selected configuration</p>
-                  <p className="text-xs sm:text-sm text-gray-500 mt-2">Try selecting a different storage or condition</p>
+                <div className="bg-white rounded-xl border border-gray-200 p-12 sm:p-16 text-center lg:col-span-2">
+                  <p className="text-base sm:text-lg text-gray-600 font-medium">No offers available for the selected configuration</p>
+                  <p className="text-sm sm:text-base text-gray-500 mt-2">Try selecting a different storage or condition</p>
                 </div>
               ) : (
-                paginatedOffers.map((offer, index) => (
+                offers.slice(0, displayedCount).map((offer: Offer, index: number) => (
                 <div
                   key={offer.recycler.id}
                   onClick={() => setSelectedOffer(offer)}
-                  className={`bg-white rounded-lg sm:rounded-xl border-2 p-4 sm:p-6 hover:shadow-lg transition-all relative cursor-pointer ${
-                    selectedOffer?.recycler.id === offer.recycler.id ? 'border-[#1b981b]' : 'border-gray-200'
+                  className={`bg-white rounded-lg sm:rounded-xl border-2 p-3 sm:p-4 lg:p-5 hover:shadow-lg transition-all relative cursor-pointer ${
+                    selectedOffer?.recycler.id === offer.recycler.id ? 'border-[#1b981b] shadow-md' : 'border-gray-200'
                   }`}
                 >
-                  {currentPage === 0 && index === 0 && (
-                    <div className="absolute -top-2 sm:-top-3 right-4 sm:right-6">
-                      <span className="bg-primary text-white px-3 sm:px-4 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold shadow-md">
+                  {index === 0 && (
+                    <div className="absolute -top-2 right-2 sm:right-3">
+                      <span className="bg-gradient-to-r from-[#1b981b] to-[#158515] text-white px-2 sm:px-2.5 lg:px-3 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold shadow-md">
                         BEST PRICE
                       </span>
                     </div>
                   )}
 
-                  <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
+                  <div className="flex flex-col sm:flex-row items-start justify-between gap-2.5 sm:gap-3 lg:gap-4">
                     {/* Left - Recycler Info */}
-                    <div className="flex items-start space-x-3 sm:space-x-4 flex-1 w-full sm:w-auto">
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
+                    <div className="flex items-start space-x-2 sm:space-x-3 flex-1 w-full sm:w-auto">
+                      <div className="w-9 h-9 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
                         {offer.recycler.logo ? (
                           <img 
                             src={offer.recycler.logo} 
@@ -445,33 +494,59 @@ export default function PhoneDetail() {
                             className="w-full h-full object-cover"
                             onError={(e) => {
                               e.currentTarget.style.display = 'none';
-                              e.currentTarget.parentElement!.innerHTML = `<div class="w-full h-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm sm:text-base">${offer.recycler.name.split(' ').map(word => word[0]).join('').substring(0, 2).toUpperCase()}</div>`;
+                              e.currentTarget.parentElement!.innerHTML = `<div class="w-full h-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm">${offer.recycler.name.split(' ').map((word: string) => word[0]).join('').substring(0, 2).toUpperCase()}</div>`;
                             }}
                           />
                         ) : (
-                          <div className="w-full h-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm sm:text-base">
-                            {offer.recycler.name.split(' ').map(word => word[0]).join('').substring(0, 2).toUpperCase()}
+                          <div className="w-full h-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm">
+                            {offer.recycler.name.split(' ').map((word: string) => word[0]).join('').substring(0, 2).toUpperCase()}
                           </div>
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-1.5 sm:mb-2">
-                          {offer.recycler.name}
+                        <h3 className="text-xs sm:text-sm lg:text-base font-bold text-gray-900 mb-0.5 sm:mb-1">
+                          {/* Mobile: Show full name always */}
+                          <span className="sm:hidden">
+                            {offer.recycler.name}
+                          </span>
+                          {/* Desktop: Show truncated with expand option */}
+                          <span className="hidden sm:inline">
+                            {offer.recycler.name.length > 12 ? (
+                              <span className="flex items-center gap-1">
+                                <span className={expandedNames.has(offer.recycler.id) ? '' : 'truncate'}>
+                                  {expandedNames.has(offer.recycler.id) 
+                                    ? offer.recycler.name 
+                                    : `${offer.recycler.name.substring(0, 12)}...`}
+                                </span>
+                                <span 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleNameExpansion(offer.recycler.id);
+                                  }}
+                                  className="text-[9px] text-primary cursor-pointer hover:underline whitespace-nowrap flex-shrink-0"
+                                >
+                                  {expandedNames.has(offer.recycler.id) ? 'less' : 'more'}
+                                </span>
+                              </span>
+                            ) : (
+                              offer.recycler.name
+                            )}
+                          </span>
                         </h3>
-                        <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-600">
+                        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-[9px] sm:text-[10px] text-gray-600">
                           {offer.recycler.rating !== undefined && offer.recycler.reviewCount !== undefined && offer.recycler.reviewCount > 0 && (
-                            <div className="flex items-center space-x-1">
-                              <Star className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-yellow-400 fill-yellow-400" />
+                            <div className="flex items-center space-x-0.5">
+                              <Star className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-yellow-400 fill-yellow-400" />
                               <span className="font-semibold">{offer.recycler.rating}</span>
-                              <span className="hidden sm:inline">({offer.recycler.reviewCount} {offer.recycler.reviewCount === 1 ? 'review' : 'reviews'})</span>
+                              <span className="text-gray-400">({offer.recycler.reviewCount})</span>
                             </div>
                           )}
-                          <div className="flex items-center space-x-1">
-                            <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400" />
+                          <div className="flex items-center space-x-0.5">
+                            <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-gray-400" />
                             <span>1-2 days</span>
                           </div>
-                          <div className="hidden md:flex items-center space-x-1">
-                            <CreditCard className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400" />
+                          <div className="hidden sm:flex items-center space-x-0.5">
+                            <CreditCard className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-gray-400" />
                             <span>Bank Transfer</span>
                           </div>
                         </div>
@@ -479,63 +554,60 @@ export default function PhoneDetail() {
                     </div>
 
                     {/* Right - Price & Action */}
-                    <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-start w-full sm:w-auto space-x-3 sm:space-x-0 sm:space-y-3">
+                    <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-start w-full sm:w-auto gap-2 sm:gap-3">
                       <div className="text-left sm:text-right">
-                        {currentPage === 0 && index === 0 && (
-                          <div className="text-[10px] sm:text-xs text-gray-500 mb-0.5 sm:mb-1">Best Price</div>
+                        {index === 0 && (
+                          <div className="text-[9px] sm:text-[10px] text-gray-500 mb-0 sm:mb-0.5 font-medium">Best Price</div>
                         )}
-                        <div className="text-2xl sm:text-3xl font-bold text-[#1b981b]">
+                        <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-[#1b981b]">
                           £{Math.round(offer.price)}
                         </div>
                       </div>
                       <button
                         onClick={() => handleSellNow(offer)}
-                        className="bg-[#1b981b] text-white px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg text-sm sm:text-base font-semibold hover:bg-[#158515] transition-colors shadow-md whitespace-nowrap"
+                        className="bg-gradient-to-r from-[#1b981b] to-[#158515] text-white px-4 sm:px-5 lg:px-7 py-1.5 sm:py-2 lg:py-2.5 rounded-lg text-[11px] sm:text-xs lg:text-sm font-bold hover:shadow-lg transition-all shadow-md whitespace-nowrap"
                       >
                         Sell Now
                       </button>
                     </div>
                   </div>
+
+                  {/* USPs vertical layout - One per row */}
+                  {offer.recycler.usps && offer.recycler.usps.length > 0 && (
+                    <div className="flex flex-col gap-1.5 sm:gap-2 mt-2 sm:mt-3 pt-2 sm:pt-3 border-t border-gray-100">
+                      {offer.recycler.usps.map((usp: string, uspIndex: number) => (
+                        <div key={uspIndex} className="flex items-center gap-1.5 sm:gap-2 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg px-2 sm:px-2.5 lg:px-3 py-1 sm:py-1.5 border border-green-100">
+                          <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 lg:w-5 lg:h-5 bg-gradient-to-br from-[#1b981b] to-[#158515] rounded-full flex items-center justify-center flex-shrink-0">
+                            <Check className="w-2 h-2 sm:w-2.5 sm:h-2.5 lg:w-3 lg:h-3 text-white stroke-[2.5]" />
+                          </div>
+                          <p className="text-[9px] sm:text-[10px] lg:text-xs font-semibold text-gray-900">{usp}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))
               )}
             </div>
 
-            {/* Partner USPs - Show for selected offer */}
-            {selectedOffer && selectedOffer.recycler.usps && selectedOffer.recycler.usps.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mt-6 sm:mt-8">
-                {selectedOffer.recycler.usps.map((usp, index) => (
-                  <div key={index} className="bg-white rounded-lg sm:rounded-xl border border-gray-200 p-3 sm:p-4 text-center">
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#1b981b] rounded-full flex items-center justify-center mx-auto mb-2 sm:mb-3">
-                      <Check className="w-6 h-6 sm:w-7 sm:h-7 text-white stroke-[3]" />
-                    </div>
-                    <p className="text-xs sm:text-sm font-semibold text-gray-900">{usp}</p>
+            {/* Load More Trigger & Loading Indicator */}
+            {offers.length > 0 && displayedCount < offers.length && (
+              <div ref={loadMoreRef} className="mt-8 text-center">
+                {isLoadingMore && (
+                  <div className="flex items-center justify-center py-6">
+                    <Loader2 className="w-6 h-6 text-[#1b981b] animate-spin" />
+                    <span className="ml-2 text-sm text-gray-600">Loading more offers...</span>
                   </div>
-                ))}
+                )}
               </div>
             )}
 
-            {/* Trust Badges - Bullet Style */}
-            <div className="mt-6 sm:mt-8 bg-gray-50 rounded-lg sm:rounded-xl p-4 sm:p-6">
-              <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-3 sm:mb-4">Why Choose Us</h3>
-              <div className="space-y-2.5 sm:space-y-3">
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-[#1b981b] rounded-full flex-shrink-0"></div>
-                  <Lock className="w-4 h-4 sm:w-5 sm:h-5 text-[#1b981b] flex-shrink-0" />
-                  <p className="text-xs sm:text-sm font-medium text-gray-700">Secure checkout with SSL encryption</p>
-                </div>
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-[#1b981b] rounded-full flex-shrink-0"></div>
-                  <Package className="w-4 h-4 sm:w-5 sm:h-5 text-[#1b981b] flex-shrink-0" />
-                  <p className="text-xs sm:text-sm font-medium text-gray-700">Free postage with tracked delivery</p>
-                </div>
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-[#1b981b] rounded-full flex-shrink-0"></div>
-                  <CreditCard className="w-4 h-4 sm:w-5 sm:h-5 text-[#1b981b] flex-shrink-0" />
-                  <p className="text-xs sm:text-sm font-medium text-gray-700">Fast payment within 24 hours</p>
-                </div>
+            {/* All Loaded Message */}
+            {offers.length > 6 && displayedCount >= offers.length && (
+              <div className="mt-8 text-center py-4">
+                <p className="text-sm text-gray-500 font-medium">You've seen all {offers.length} offers</p>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>

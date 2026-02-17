@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Check, X, AlertCircle, Loader, ArrowRight, DollarSign, FileText, Calendar, Package, ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Check, X, AlertCircle, Loader, ArrowRight, FileText, Calendar, Package, ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from 'lucide-react';
 import { counterOfferAPI } from '../services/api';
 
 const CounterOffer: React.FC = () => {
@@ -43,7 +43,11 @@ const CounterOffer: React.FC = () => {
 
   const handleAccept = async () => {
     setActionType('accept');
-    setShowNotesInput(true);
+    // For accept, don't show notes input - just confirm immediately
+    setCustomerNotes('');
+    setShowNotesInput(false);
+    // Call confirm action directly for accept
+    setTimeout(() => confirmAcceptAction(), 0);
   };
 
   const handleDecline = async () => {
@@ -52,31 +56,45 @@ const CounterOffer: React.FC = () => {
   };
 
   const confirmAction = async () => {
-    if (!actionType) return;
+    if (actionType !== 'decline') return;
 
     setIsProcessing(true);
     setError('');
 
     try {
-      let response: any;
-      if (actionType === 'accept') {
-        response = await counterOfferAPI.accept(token!, customerNotes);
-      } else {
-        response = await counterOfferAPI.decline(token!, customerNotes);
-      }
+      const response: any = await counterOfferAPI.decline(token!, customerNotes);
 
       if (response.success) {
-        // Refresh the counter offer data to show updated status
         await fetchCounterOffer();
         setShowNotesInput(false);
         setActionType(null);
         setCustomerNotes('');
       } else {
-        setError(response.message || `Failed to ${actionType} counter offer`);
+        setError(response.message || 'Failed to decline counter offer');
       }
     } catch (err: any) {
-      console.error(`Error ${actionType}ing counter offer:`, err);
-      setError(err.response?.data?.message || `Failed to ${actionType} counter offer`);
+      console.error('Error declining counter offer:', err);
+      setError(err.response?.data?.message || 'Failed to decline counter offer');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const confirmAcceptAction = async () => {
+    setIsProcessing(true);
+    setError('');
+
+    try {
+      const response: any = await counterOfferAPI.accept(token!, '');
+      if (response.success) {
+        await fetchCounterOffer();
+        setActionType(null);
+      } else {
+        setError(response.message || 'Failed to accept counter offer');
+      }
+    } catch (err: any) {
+      console.error('Error accepting counter offer:', err);
+      setError(err.response?.data?.message || 'Failed to accept counter offer');
     } finally {
       setIsProcessing(false);
     }
@@ -257,28 +275,18 @@ const CounterOffer: React.FC = () => {
           {/* Price Comparison */}
           <div className="bg-white rounded-2xl shadow-lg p-6">
             <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-[#1b981b]" />
+              <span className="text-xl font-bold text-[#1b981b]">£</span>
               Price Adjustment
             </h2>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                <div>
-                  <p className="text-sm text-gray-600">Original Offer</p>
-                  <p className="text-2xl font-bold text-gray-900">£{counterOffer.originalPrice.toFixed(2)}</p>
-                </div>
-                <ArrowRight className="w-6 h-6 text-gray-400" />
-                <div>
-                  <p className="text-sm text-gray-600">Revised Offer</p>
-                  <p className="text-2xl font-bold text-[#1b981b]">£{counterOffer.amendedPrice.toFixed(2)}</p>
-                </div>
+            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+              <div>
+                <p className="text-sm text-gray-600">Original Offer</p>
+                <p className="text-2xl font-bold text-gray-900">£{counterOffer.originalPrice.toFixed(2)}</p>
               </div>
-              <div className={`p-4 rounded-xl ${counterOffer.amendedPrice > counterOffer.originalPrice ? 'bg-green-50' : 'bg-red-50'}`}>
-                <p className="text-sm font-semibold mb-1">
-                  {counterOffer.amendedPrice > counterOffer.originalPrice ? 'Increase' : 'Decrease'}
-                </p>
-                <p className={`text-xl font-bold ${counterOffer.amendedPrice > counterOffer.originalPrice ? 'text-green-600' : 'text-red-600'}`}>
-                  {counterOffer.amendedPrice > counterOffer.originalPrice ? '+' : ''}£{(counterOffer.amendedPrice - counterOffer.originalPrice).toFixed(2)}
-                </p>
+              <ArrowRight className="w-6 h-6 text-gray-400" />
+              <div>
+                <p className="text-sm text-gray-600">Revised Offer</p>
+                <p className="text-2xl font-bold text-[#1b981b]">£{counterOffer.amendedPrice.toFixed(2)}</p>
               </div>
             </div>
           </div>
@@ -403,16 +411,14 @@ const CounterOffer: React.FC = () => {
           </div>
         )}
 
-        {/* Notes Input (shown when user clicks accept/decline) */}
-        {showNotesInput && (
+        {/* Notes Input (shown when user clicks decline) */}
+        {showNotesInput && actionType === 'decline' && (
           <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
             <h3 className="text-lg font-bold text-gray-800 mb-3">
-              {actionType === 'accept' ? 'Accepting Counter Offer' : 'Declining Counter Offer'}
+              Declining Counter Offer
             </h3>
             <p className="text-gray-600 mb-4 text-sm">
-              {actionType === 'accept' 
-                ? 'You can optionally provide feedback about accepting this offer.'
-                : 'Please let us know why you are declining this offer (optional).'}
+              Please let us know why you are declining this offer (optional).
             </p>
             <textarea
               value={customerNotes}
@@ -432,11 +438,7 @@ const CounterOffer: React.FC = () => {
               <button
                 onClick={confirmAction}
                 disabled={isProcessing}
-                className={`flex-1 px-6 py-3 ${
-                  actionType === 'accept' 
-                    ? 'bg-[#1b981b] hover:bg-[#157a15]' 
-                    : 'bg-red-600 hover:bg-red-700'
-                } text-white rounded-xl font-bold transition-colors disabled:opacity-50 flex items-center justify-center gap-2`}
+                className="flex-1 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {isProcessing ? (
                   <>
@@ -445,8 +447,46 @@ const CounterOffer: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    {actionType === 'accept' ? <Check className="w-5 h-5" /> : <X className="w-5 h-5" />}
-                    Confirm {actionType === 'accept' ? 'Accept' : 'Decline'}
+                    <X className="w-5 h-5" />
+                    Confirm Decline
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Accept Confirmation (shown when user clicks accept) */}
+        {showNotesInput && actionType === 'accept' && (
+          <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
+            <h3 className="text-lg font-bold text-gray-800 mb-3">
+              Accepting Counter Offer
+            </h3>
+            <p className="text-gray-600 mb-4 text-sm">
+              Are you sure you want to accept this counter offer? This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={cancelAction}
+                disabled={isProcessing}
+                className="flex-1 px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmAcceptAction}
+                disabled={isProcessing}
+                className="flex-1 px-6 py-3 bg-[#1b981b] hover:bg-[#157a15] text-white rounded-xl font-bold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader className="w-5 h-5 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-5 h-5" />
+                    Confirm Accept
                   </>
                 )}
               </button>

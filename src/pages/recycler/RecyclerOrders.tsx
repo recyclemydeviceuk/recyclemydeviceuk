@@ -20,8 +20,7 @@ import {
   TrendingUp,
   AlertCircle,
   Phone,
-  Check,
-  DollarSign
+  Check
 } from 'lucide-react';
 import RecyclerSidebar from '../../components/RecyclerSidebar';
 import CounterOfferModal from '../../components/recycler/CounterOfferModal';
@@ -420,27 +419,60 @@ const RecyclerOrders: React.FC = () => {
     return labels[status] || status;
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, order?: Order) => {
     if (!status) return null;
+    
+    // Special handling for counter_offer_pending - show the actual counter offer status
+    if (status === 'counter_offer_pending' && order?.counterOffer) {
+      const counterOfferStatus = order.counterOffer.status;
+      const coStyles = {
+        pending: 'bg-gradient-to-r from-amber-50 to-amber-100 text-amber-700 border-amber-200',
+        accepted: 'bg-gradient-to-r from-green-50 to-green-100 text-green-700 border-green-200',
+        declined: 'bg-gradient-to-r from-red-50 to-red-100 text-red-700 border-red-200',
+        expired: 'bg-gradient-to-r from-gray-50 to-gray-100 text-gray-700 border-gray-200'
+      };
+      const coLabels = {
+        pending: 'Counter Offer Pending',
+        accepted: 'Counter Offer Accepted',
+        declined: 'Counter Offer Declined',
+        expired: 'Counter Offer Expired'
+      };
+      return (
+        <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border-2 ${coStyles[counterOfferStatus as keyof typeof coStyles] || coStyles.pending}`}>
+          <Clock className="w-3 h-3" />
+          {coLabels[counterOfferStatus as keyof typeof coLabels] || 'Counter Offer'}
+        </span>
+      );
+    }
     
     const styles = {
       pending: 'bg-gradient-to-r from-yellow-50 to-yellow-100 text-yellow-700 border-yellow-200',
       processing: 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 border-blue-200',
       completed: 'bg-gradient-to-r from-green-50 to-green-100 text-green-700 border-green-200',
-      cancelled: 'bg-gradient-to-r from-red-50 to-red-100 text-red-700 border-red-200'
+      cancelled: 'bg-gradient-to-r from-red-50 to-red-100 text-red-700 border-red-200',
+      counter_offer_pending: 'bg-gradient-to-r from-amber-50 to-amber-100 text-amber-700 border-amber-200'
     };
     
     const icons = {
       pending: <Clock className="w-3 h-3" />,
       processing: <Truck className="w-3 h-3" />,
       completed: <CheckCircle2 className="w-3 h-3" />,
-      cancelled: <XCircle className="w-3 h-3" />
+      cancelled: <XCircle className="w-3 h-3" />,
+      counter_offer_pending: <Clock className="w-3 h-3" />
+    };
+
+    const labels = {
+      pending: 'Pending',
+      processing: 'Processing',
+      completed: 'Completed',
+      cancelled: 'Cancelled',
+      counter_offer_pending: 'Counter Offer Pending'
     };
 
     return (
       <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border-2 ${styles[status as keyof typeof styles] || 'bg-gray-100 text-gray-700 border-gray-200'}`}>
         {icons[status as keyof typeof icons] || <Package className="w-3 h-3" />}
-        {status.charAt(0).toUpperCase() + status.slice(1)}
+        {labels[status as keyof typeof labels] || status.charAt(0).toUpperCase() + status.slice(1)}
       </span>
     );
   };
@@ -833,7 +865,7 @@ const RecyclerOrders: React.FC = () => {
                         
                         <div className="flex flex-col items-end gap-3">
                           <div className="flex items-center gap-2">
-                            {getStatusBadge(order.status)}
+                            {getStatusBadge(order.status, order)}
                             {getPaymentBadge(order.paymentStatus)}
                           </div>
                           <button
@@ -928,10 +960,10 @@ const RecyclerOrders: React.FC = () => {
                             )}
 
                             {/* Counter Offer Status */}
-                            {order.counterOffer && (
+                            {order.counterOffer?.status && order.counterOffer.status !== 'none' && (
                               <div className={`rounded-2xl p-5 border-2 shadow-lg ${getCounterOfferBadge(order.counterOffer.status)}`}>
                                 <h4 className="text-sm font-bold mb-3 uppercase tracking-wide flex items-center gap-2">
-                                  <DollarSign className="w-5 h-5" />
+                                  <span className="text-xl font-bold">£</span>
                                   Counter Offer Status
                                 </h4>
                                 <div className="space-y-3">
@@ -976,7 +1008,7 @@ const RecyclerOrders: React.FC = () => {
                                 disabled={order.status === 'counter_offer_pending' || order.status === 'completed' || order.status === 'cancelled'}
                                 className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl font-bold transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
                               >
-                                <DollarSign className="w-4 h-4" />
+                                <span className="text-lg font-bold">£</span>
                                 Counter Offer
                               </button>
                               <button 

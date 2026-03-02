@@ -12,6 +12,7 @@ interface OrderDetails {
   customerPhone: string;
   device: string;
   condition: string;
+  network: string;
   offerPrice: number;
   recycler: string;
   status: 'pending' | 'confirmed' | 'collected' | 'completed' | 'cancelled';
@@ -57,6 +58,7 @@ const OrderDetailsPage: React.FC = () => {
             customerPhone: order.customerPhone,
             device: order.deviceId?.name || 'N/A',
             condition: order.deviceCondition,
+            network: order.network || 'Unlocked',
             offerPrice: order.amount,
             recycler: order.recyclerId?.companyName || 'Not Assigned',
             status: order.status,
@@ -369,6 +371,11 @@ const OrderDetailsPage: React.FC = () => {
                   ) : (
                     <p className="text-gray-900 font-semibold">{orderData.device}</p>
                   )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Network</label>
+                  <p className="text-gray-900 font-semibold">{orderData.network}</p>
                 </div>
 
                 <div>

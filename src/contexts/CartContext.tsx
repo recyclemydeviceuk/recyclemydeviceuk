@@ -13,6 +13,7 @@ export interface CartItem {
   price: number;
   storage: string;
   condition: string;
+  network: string;
 }
 
 interface CartContextType {
@@ -29,7 +30,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [cartItem, setCartItem] = useState<CartItem | null>(() => {
     try {
       const savedCart = localStorage.getItem(CART_STORAGE_KEY);
-      return savedCart ? JSON.parse(savedCart) : null;
+      if (!savedCart) return null;
+      const parsed = JSON.parse(savedCart);
+      // Ensure network field exists for carts saved before this field was added
+      return { network: 'Unlocked', ...parsed };
     } catch (error) {
       console.error('Error loading cart from localStorage:', error);
       return null;

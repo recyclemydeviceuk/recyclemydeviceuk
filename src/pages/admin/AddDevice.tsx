@@ -19,6 +19,7 @@ interface FormData {
   category: string;
   storageOptions: string[];
   conditionOptions: string[];
+  networkOptions: string[];
   image: File | null;
 }
 
@@ -31,6 +32,7 @@ const AddDevice: React.FC = () => {
     category: '',
     storageOptions: [],
     conditionOptions: ['Excellent', 'Good', 'Fair', 'Poor'],
+    networkOptions: ['Unlocked'],
     image: null,
   });
 
@@ -39,6 +41,7 @@ const AddDevice: React.FC = () => {
   const [categories, setCategories] = useState<Array<{value: string; label: string}>>([]);
   const [storageOptions, setStorageOptions] = useState<Array<{value: string; label: string}>>([]);
   const [conditions, setConditions] = useState<Array<{value: string; label: string}>>([]);
+  const [networkOptionsList, setNetworkOptionsList] = useState<Array<{value: string; label: string}>>([]);
   const [loadingUtilities, setLoadingUtilities] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -49,11 +52,12 @@ const AddDevice: React.FC = () => {
         setLoadingUtilities(true);
         
         // Fetch all utilities in parallel
-        const [brandsRes, categoriesRes, storageRes, conditionsRes]: any[] = await Promise.all([
+        const [brandsRes, categoriesRes, storageRes, conditionsRes, networkRes]: any[] = await Promise.all([
           adminAPI.utilities.getBrands(),
           adminAPI.utilities.getCategories(),
           adminAPI.utilities.getStorageOptions(),
           adminAPI.utilities.getConditions(),
+          adminAPI.utilities.getNetworkOptions().catch(() => ({ data: [] })),
         ]);
         
         // Set brands
@@ -90,6 +94,21 @@ const AddDevice: React.FC = () => {
           }));
         console.log('Transformed conditions:', transformedConditions);
         setConditions(transformedConditions);
+
+        // Set network options - transform to {value, label} format
+        const networkData = networkRes.data || [];
+        const transformedNetworks = networkData
+          .filter((item: any) => item && item.name)
+          .map((item: any) => ({
+            value: item.name,
+            label: item.name
+          }));
+        // Fallback if no network options in DB
+        setNetworkOptionsList(transformedNetworks.length > 0 ? transformedNetworks : [
+          { value: 'Unlocked', label: 'Unlocked' },
+          { value: 'Locked', label: 'Locked' },
+          { value: 'Any Network', label: 'Any Network' },
+        ]);
       } catch (err: any) {
         console.error('Error fetching utilities:', err);
         // Set fallback data
@@ -97,6 +116,11 @@ const AddDevice: React.FC = () => {
         setCategories([]);
         setStorageOptions([]);
         setConditions([]);
+        setNetworkOptionsList([
+          { value: 'Unlocked', label: 'Unlocked' },
+          { value: 'Locked', label: 'Locked' },
+          { value: 'Any Network', label: 'Any Network' },
+        ]);
       } finally {
         setLoadingUtilities(false);
       }
@@ -149,9 +173,6 @@ const AddDevice: React.FC = () => {
     if (!formData.name.trim()) {
       newErrors.name = 'Device name is required';
     }
-    if (!formData.description.trim()) {
-      newErrors.description = 'Description is required';
-    }
     if (!formData.brand) {
       newErrors.brand = 'Please select a brand';
     }
@@ -191,9 +212,10 @@ const AddDevice: React.FC = () => {
         name: formData.name.trim(),
         brand: formData.brand,
         category: formData.category,
-        description: formData.description.trim(),
+        description: formData.description.trim() || '',
         storageOptions: formData.storageOptions,
         conditionOptions: formData.conditionOptions,
+        networkOptions: formData.networkOptions,
         image: imageUrl,
         status: 'active',
       };
@@ -371,10 +393,25 @@ const AddDevice: React.FC = () => {
                     <p className="text-xs text-gray-500 mt-1">Select all condition grades for device pricing</p>
                   </div>
 
+                  {/* Network Options */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Network Options <span className="text-xs text-gray-500">(Recyclers can set prices per network)</span>
+                    </label>
+                    <MultiSelectDropdown
+                      options={networkOptionsList}
+                      value={formData.networkOptions}
+                      onChange={(values) => handleInputChange('networkOptions', values)}
+                      placeholder="Select network options"
+                      disabled={loadingUtilities}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Select all network types this device supports (e.g., Unlocked, EE, Vodafone)</p>
+                  </div>
+
                   {/* Description */}
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Description *
+                      Description
                     </label>
                     <textarea
                       value={formData.description}

@@ -4,7 +4,7 @@ import { LogOut, Plus, Edit2, Trash2, X, Save, Settings, Loader2 } from 'lucide-
 import AdminSidebar from '../../components/AdminSidebar';
 import { adminAPI } from '../../services/api';
 
-type TabType = 'orderStatuses' | 'paymentStatuses' | 'brands' | 'conditions' | 'storageOptions' | 'categories' | 'blogCategories' | 'faqCategories';
+type TabType = 'orderStatuses' | 'paymentStatuses' | 'brands' | 'conditions' | 'storageOptions' | 'networkOptions' | 'categories' | 'blogCategories' | 'faqCategories';
 
 interface OrderStatus {
   id: string;
@@ -51,6 +51,12 @@ interface StorageOption {
   category: string;
 }
 
+interface NetworkOption {
+  id: string;
+  name: string;
+  category: string;
+}
+
 interface DeviceCategory {
   id: string;
   value: string;
@@ -80,6 +86,7 @@ const UtilitiesManagement: React.FC = () => {
   const [brands, setBrands] = useState<Brand[]>([]);
   const [conditions, setConditions] = useState<Condition[]>([]);
   const [storageOptions, setStorageOptions] = useState<StorageOption[]>([]);
+  const [networkOptions, setNetworkOptions] = useState<NetworkOption[]>([]);
   const [categories, setCategories] = useState<DeviceCategory[]>([]);
 
   const [blogCategories, setBlogCategories] = useState<BlogCategory[]>([
@@ -112,12 +119,13 @@ const UtilitiesManagement: React.FC = () => {
   const fetchUtilitiesData = async () => {
     try {
       setLoading(true);
-      const [brandsRes, orderStatusRes, paymentStatusRes, categoriesRes, storageRes, conditionsRes, blogCategoriesRes, faqCategoriesRes]: any[] = await Promise.all([
+      const [brandsRes, orderStatusRes, paymentStatusRes, categoriesRes, storageRes, networkRes, conditionsRes, blogCategoriesRes, faqCategoriesRes]: any[] = await Promise.all([
         adminAPI.utilities.getBrands(),
         adminAPI.utilities.getOrderStatuses().catch(() => ({ data: [] })),
         adminAPI.utilities.getPaymentStatuses().catch(() => ({ data: [] })),
         adminAPI.utilities.getCategories(),
         adminAPI.utilities.getStorageOptions(),
+        adminAPI.utilities.getNetworkOptions().catch(() => ({ data: [] })),
         adminAPI.utilities.getConditions(),
         adminAPI.utilities.getBlogCategories(),
         adminAPI.utilities.getFAQCategories(),
@@ -155,6 +163,13 @@ const UtilitiesManagement: React.FC = () => {
         name: s.name,
         category: s.category,
         description: s.description,
+      })));
+
+      // Set network options from database
+      setNetworkOptions((networkRes.data || []).map((n: any) => ({
+        id: n._id,
+        name: n.name,
+        category: n.category,
       })));
 
       // Set conditions from database
@@ -276,6 +291,10 @@ const UtilitiesManagement: React.FC = () => {
             response = await adminAPI.utilities.createStorageOption(formData);
             setStorageOptions([...storageOptions, { id: response.data._id, name: response.data.name, category: response.data.category }]);
             break;
+          case 'networkOptions':
+            response = await adminAPI.utilities.createNetworkOption(formData);
+            setNetworkOptions([...networkOptions, { id: response.data._id, name: response.data.name, category: response.data.category }]);
+            break;
           case 'categories':
             response = await adminAPI.utilities.createCategory(formData);
             setCategories([...categories, { id: response.data._id, value: response.data.value, label: response.data.label }]);
@@ -325,6 +344,10 @@ const UtilitiesManagement: React.FC = () => {
           case 'storageOptions':
             response = await adminAPI.utilities.updateStorageOption(id, formData);
             setStorageOptions(storageOptions.map(item => item.id === id ? { id, name: response.data.name, category: response.data.category } : item));
+            break;
+          case 'networkOptions':
+            response = await adminAPI.utilities.updateNetworkOption(id, formData);
+            setNetworkOptions(networkOptions.map(item => item.id === id ? { id, name: response.data.name, category: response.data.category } : item));
             break;
           case 'categories':
             response = await adminAPI.utilities.updateCategory(id, formData);
@@ -379,6 +402,10 @@ const UtilitiesManagement: React.FC = () => {
           await adminAPI.utilities.deleteStorageOption(id);
           setStorageOptions(storageOptions.filter(item => item.id !== id));
           break;
+        case 'networkOptions':
+          await adminAPI.utilities.deleteNetworkOption(id);
+          setNetworkOptions(networkOptions.filter(item => item.id !== id));
+          break;
         case 'categories':
           await adminAPI.utilities.deleteCategory(id);
           setCategories(categories.filter(item => item.id !== id));
@@ -405,6 +432,7 @@ const UtilitiesManagement: React.FC = () => {
       case 'brands': return brands;
       case 'conditions': return conditions;
       case 'storageOptions': return storageOptions;
+      case 'networkOptions': return networkOptions;
       case 'categories': return categories;
       case 'blogCategories': return blogCategories;
       case 'faqCategories': return faqCategories;
@@ -418,6 +446,7 @@ const UtilitiesManagement: React.FC = () => {
       case 'brands': return 'Brands';
       case 'conditions': return 'Device Conditions';
       case 'storageOptions': return 'Storage Options';
+      case 'networkOptions': return 'Network Options';
       case 'categories': return 'Device Categories';
       case 'blogCategories': return 'Blog Categories';
       case 'faqCategories': return 'FAQ Categories';
@@ -430,6 +459,7 @@ const UtilitiesManagement: React.FC = () => {
     { id: 'brands' as TabType, label: 'Brands', color: 'purple' },
     { id: 'conditions' as TabType, label: 'Device Conditions', color: 'orange' },
     { id: 'storageOptions' as TabType, label: 'Storage Options', color: 'teal' },
+    { id: 'networkOptions' as TabType, label: 'Network Options', color: 'yellow' },
     { id: 'categories' as TabType, label: 'Device Categories', color: 'cyan' },
     { id: 'blogCategories' as TabType, label: 'Blog Categories', color: 'pink' },
     { id: 'faqCategories' as TabType, label: 'FAQ Categories', color: 'indigo' },
@@ -521,7 +551,7 @@ const UtilitiesManagement: React.FC = () => {
             </div>
 
             {/* Stats Cards - Row 2 */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5 mb-8">
               <div className="bg-white rounded-2xl border-2 border-teal-500 p-5 shadow-lg hover:shadow-xl transition-shadow duration-200">
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
@@ -529,6 +559,18 @@ const UtilitiesManagement: React.FC = () => {
                     <p className="text-3xl font-extrabold text-gray-900">{storageOptions.length}</p>
                   </div>
                   <div className="w-14 h-14 bg-teal-500 rounded-2xl flex items-center justify-center shadow-md">
+                    <Settings className="w-7 h-7 text-white" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl border-2 border-yellow-500 p-5 shadow-lg hover:shadow-xl transition-shadow duration-200 cursor-pointer" onClick={() => setActiveTab('networkOptions')}>
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Network Options</p>
+                    <p className="text-3xl font-extrabold text-gray-900">{networkOptions.length}</p>
+                  </div>
+                  <div className="w-14 h-14 bg-yellow-500 rounded-2xl flex items-center justify-center shadow-md">
                     <Settings className="w-7 h-7 text-white" />
                   </div>
                 </div>
@@ -741,7 +783,7 @@ const UtilitiesManagement: React.FC = () => {
                 </div>
               )}
 
-              {/* Category Field (for storage options) */}
+              {/* Category Field (for storage options only) */}
               {activeTab === 'storageOptions' && (
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">

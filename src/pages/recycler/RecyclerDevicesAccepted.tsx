@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { recyclerAuthService } from '../../services/recyclerAuth';
-import { recyclerAPI } from '../../services/api';
 import { 
   LogOut, 
   Package, 
@@ -22,6 +21,7 @@ import RecyclerSidebar from '../../components/RecyclerSidebar';
 interface DevicePricing {
   condition: string;
   storage: string;
+  network: string;
   price: number;
 }
 
@@ -32,9 +32,11 @@ interface Device {
   image: string;
   storageOptions: string[];
   conditionOptions: string[];
+  networkOptions: string[];
   selected: boolean;
   pricing: DevicePricing[];
   expanded: boolean;
+  activeNetwork: string;
 }
 
 const RecyclerDevicesAccepted: React.FC = () => {
@@ -49,95 +51,16 @@ const RecyclerDevicesAccepted: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [loadingConfig, setLoadingConfig] = useState(true);
+  const [isSelectingAll, setIsSelectingAll] = useState(false);
   const [error, setError] = useState('');
   
-  // Global storage and condition settings
-  const [enabledStorage, setEnabledStorage] = useState<{[key: string]: boolean}>({
-    '128GB': true,
-    '256GB': true,
-    '512GB': true,
-    '1TB': true
-  });
-  
-  const [enabledConditions, setEnabledConditions] = useState<{[key: string]: boolean}>({
-    'Like New': true,
-    'Good': true,
-    'Fair': true,
-    'Poor': true,
-    'Faulty': true
-  });
+  // Global storage, condition, and network settings (populated from backend)
+  const [enabledStorage, setEnabledStorage] = useState<{[key: string]: boolean}>({});
+  const [enabledConditions, setEnabledConditions] = useState<{[key: string]: boolean}>({});
+  const [enabledNetworks, setEnabledNetworks] = useState<{[key: string]: boolean}>({});
 
   // Devices data from backend
   const [devices, setDevices] = useState<Device[]>([]);
-
-  // Fetch devices from backend
-  useEffect(() => {
-    fetchDevices();
-  }, [debouncedSearchQuery, brandFilter, currentPage]);
-
-  const fetchDevices = async () => {
-    setIsLoading(true);
-    setError('');
-    try {
-      const params: any = {
-        page: currentPage,
-        limit: 10
-      };
-      
-      if (debouncedSearchQuery) params.search = debouncedSearchQuery;
-      if (brandFilter !== 'all') params.brand = brandFilter;
-      
-      const response = await recyclerAPI.devices.getAll(params);
-      
-      if (response?.data) {
-        const devicesData = Array.isArray(response.data) ? response.data : response.data.devices || [];
-        
-        // Transform backend data to match frontend interface
-        const transformedDevices = devicesData.map((device: any) => {
-          // Get image from various possible fields in backend
-          const deviceImage = device.image || 
-                            device.imageUrl || 
-                            device.deviceImage || 
-                            (device.images && device.images.length > 0 ? device.images[0] : null) ||
-                            (device.media && device.media.length > 0 ? device.media[0] : null) ||
-                            'https://storage.googleapis.com/atomjuice-product-images/apple/iphone-16-pro/default.png';
-          
-          // Extract storage options as strings
-          const storageOptions = (device.storageOptions || []).map((storage: any) => 
-            typeof storage === 'object' ? storage?.name || storage?.value || '' : String(storage)
-          ).filter((s: string) => s.trim() !== '');
-          
-          // Extract condition options as strings
-          const conditionOptions = (device.conditionOptions || []).map((condition: any) => 
-            typeof condition === 'object' ? condition?.name || condition?.value || '' : String(condition)
-          ).filter((c: string) => c.trim() !== '');
-          
-          return {
-            id: device._id,
-            brand: typeof device.brand === 'object' ? device.brand?.name || '' : device.brand || '',
-            model: device.model,
-            image: deviceImage,
-            storageOptions,
-            conditionOptions,
-            selected: false,
-            pricing: device.pricing || [],
-            expanded: false
-          };
-        });
-        
-        setDevices(transformedDevices);
-        const total = (response as any).pagination?.total || (response as any).total || transformedDevices.length;
-        setTotalDevices(total);
-        setTotalPages(Math.ceil(total / 10));
-      }
-    } catch (error: any) {
-      console.error('Error fetching devices:', error);
-      setError(error.message || 'Failed to load devices');
-    } finally {
-      setIsLoading(false);
-      setLoadingConfig(false);
-    }
-  };
 
   // Debounce search query
   React.useEffect(() => {
@@ -148,7 +71,7 @@ const RecyclerDevicesAccepted: React.FC = () => {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Build unique storage and condition options from devices
+  // Build unique storage, condition, and network options from devices
   const allStorageOptions = React.useMemo(() => {
     const storageSet = new Set<string>();
     devices.forEach(device => {
@@ -165,66 +88,98 @@ const RecyclerDevicesAccepted: React.FC = () => {
     return Array.from(conditionSet);
   }, [devices]);
 
+  const allNetworkOptions = React.useMemo(() => {
+    const networkSet = new Set<string>();
+    devices.forEach(device => {
+      (device.networkOptions || []).forEach(network => networkSet.add(network));
+    });
+    return Array.from(networkSet);
+  }, [devices]);
+
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // Initialize enabled options dynamically when devices are loaded
   React.useEffect(() => {
-    if (devices.length > 0 && allStorageOptions.length > 0 && allConditions.length > 0) {
-      // Build initial enabled state from all available options
-      const initialStorage: {[key: string]: boolean} = {};
-      allStorageOptions.forEach(storage => {
-        initialStorage[storage] = enabledStorage[storage] !== undefined ? enabledStorage[storage] : true;
-      });
-      
-      const initialConditions: {[key: string]: boolean} = {};
-      allConditions.forEach(condition => {
-        initialConditions[condition] = enabledConditions[condition] !== undefined ? enabledConditions[condition] : true;
-      });
-      
-      // Only update if there are new options
+    if (devices.length > 0) {
       const hasNewStorage = allStorageOptions.some(s => enabledStorage[s] === undefined);
       const hasNewConditions = allConditions.some(c => enabledConditions[c] === undefined);
-      
+      const hasNewNetworks = allNetworkOptions.some(n => enabledNetworks[n] === undefined);
+
       if (hasNewStorage) {
+        const initialStorage: {[key: string]: boolean} = { ...enabledStorage };
+        allStorageOptions.forEach(s => { if (initialStorage[s] === undefined) initialStorage[s] = true; });
         setEnabledStorage(initialStorage);
       }
       if (hasNewConditions) {
+        const initialConditions: {[key: string]: boolean} = { ...enabledConditions };
+        allConditions.forEach(c => { if (initialConditions[c] === undefined) initialConditions[c] = true; });
         setEnabledConditions(initialConditions);
       }
+      if (hasNewNetworks) {
+        const initialNetworks: {[key: string]: boolean} = { ...enabledNetworks };
+        allNetworkOptions.forEach(n => { if (initialNetworks[n] === undefined) initialNetworks[n] = true; });
+        setEnabledNetworks(initialNetworks);
+      }
     }
-  }, [devices, allStorageOptions, allConditions]);
+  }, [devices, allStorageOptions, allConditions, allNetworkOptions]);
 
   // Load existing configuration on mount
   React.useEffect(() => {
     const loadConfiguration = async () => {
       try {
         setLoadingConfig(true);
+        console.log('🔄 Loading configuration from backend...');
         const configResponse = await recyclerAuthService.getDeviceConfiguration();
+        
+        console.log('📦 Config response:', configResponse);
         
         if (configResponse.success && configResponse.data) {
           const { preferences, pricingByDevice } = configResponse.data;
           
+          console.log('✅ Configuration loaded:', {
+            hasPreferences: !!preferences,
+            hasPricing: !!pricingByDevice,
+            selectedDevicesCount: preferences?.selectedDevices?.length || 0,
+            selectedDevices: preferences?.selectedDevices
+          });
+          
           // Update preferences
           if (preferences) {
-            if (preferences.enabledStorage) {
+            if (preferences.enabledStorage && Object.keys(preferences.enabledStorage).length > 0) {
               setEnabledStorage(preferences.enabledStorage);
             }
-            if (preferences.enabledConditions) {
+            if (preferences.enabledConditions && Object.keys(preferences.enabledConditions).length > 0) {
               setEnabledConditions(preferences.enabledConditions);
             }
-            // Store selected devices list
-            if (preferences.selectedDevices) {
-              (window as any).__savedSelectedDevices = preferences.selectedDevices;
+            if (preferences.enabledNetworks && Object.keys(preferences.enabledNetworks).length > 0) {
+              setEnabledNetworks(preferences.enabledNetworks);
             }
+            // Store selected devices list
+            if (preferences.selectedDevices && preferences.selectedDevices.length > 0) {
+              // Backend returns populated device objects, we need just the IDs
+              const deviceIds = preferences.selectedDevices.map((device: any) => {
+                // Handle both populated objects {_id: '123', name: '...'} and plain strings '123'
+                return typeof device === 'object' && device._id ? String(device._id) : String(device);
+              });
+              (window as any).__savedSelectedDevices = deviceIds;
+              console.log('💾 Saved selected device IDs to window:', deviceIds);
+            } else {
+              console.warn('⚠️ No selectedDevices in preferences!');
+              (window as any).__savedSelectedDevices = [];
+            }
+          } else {
+            console.warn('⚠️ No preferences in config response!');
           }
           
           // Store pricing data for later
           if (pricingByDevice) {
             (window as any).__initialPricingData = pricingByDevice;
           }
+        } else {
+          console.warn('⚠️ Config response not successful or no data');
         }
       } catch (err: any) {
-        console.error('Failed to load configuration:', err);
+        console.error('❌ Failed to load configuration:', err);
       } finally {
         setLoadingConfig(false);
       }
@@ -240,12 +195,6 @@ const RecyclerDevicesAccepted: React.FC = () => {
       const token = localStorage.getItem('recyclerToken');
       const auth = localStorage.getItem('recyclerAuth');
       
-      console.log('Auth check:', { 
-        hasToken: !!token, 
-        authFlag: auth,
-        token: token?.substring(0, 20) + '...' 
-      });
-      
       if (!token || auth !== 'true') {
         console.error('No valid authentication found');
         setError('Authentication required. Please log in.');
@@ -256,22 +205,22 @@ const RecyclerDevicesAccepted: React.FC = () => {
       setIsLoading(true);
       setError('');
       try {
-        console.log('Fetching devices with params:', { searchQuery, brandFilter, page: currentPage });
         const response = await recyclerAuthService.getAllDevices({
-          search: searchQuery || undefined,
+          search: debouncedSearchQuery || undefined,
           brand: brandFilter !== 'all' ? brandFilter : undefined,
           page: currentPage,
-          limit: 50, // Fetch 50 devices per page
+          limit: 10, // Fetch 10 devices per page
         });
-        
-        console.log('Devices fetched successfully:', response.data?.length || 0);
         
         // Get saved pricing data and selected devices
         const savedPricing = (window as any).__initialPricingData || {};
         const savedSelectedDevices = (window as any).__savedSelectedDevices || [];
         
-        console.log('Saved selected devices:', savedSelectedDevices);
-        console.log('Saved pricing keys:', Object.keys(savedPricing));
+        console.log('🔍 Checking saved selections:', {
+          savedCount: savedSelectedDevices.length,
+          savedIds: savedSelectedDevices,
+          fetchedDevices: response.data.length
+        });
         
         // Transform backend data to match frontend interface
         const transformedDevices = response.data.map((device: any) => {
@@ -289,15 +238,15 @@ const RecyclerDevicesAccepted: React.FC = () => {
             ? device.conditionOptions
             : [];
           
-          // Check if device is in saved selected devices list (convert both to strings for comparison)
-          const isSelected = savedSelectedDevices.some((id: any) => String(id) === deviceIdStr || String(id._id) === deviceIdStr);
-          
-          console.log('Device check:', {
-            name: device.name,
-            deviceId: deviceIdStr,
-            isSelected,
-            hasPricing: devicePricing.length > 0
+          // Check if device is in saved selected devices list
+          const isSelected = savedSelectedDevices.some((id: any) => {
+            const idStr = typeof id === 'object' && id._id ? String(id._id) : String(id);
+            return idStr === deviceIdStr;
           });
+          
+          if (isSelected) {
+            console.log(`✓ Device ${device.name} (${deviceIdStr}) is SELECTED`);
+          }
           
           return {
             id: deviceId,
@@ -306,26 +255,34 @@ const RecyclerDevicesAccepted: React.FC = () => {
             image: device.image || 'https://via.placeholder.com/100',
             storageOptions,
             conditionOptions,
-            selected: isSelected, // Use saved selection state
+            networkOptions: device.networkOptions && device.networkOptions.length > 0
+              ? device.networkOptions
+              : ['Unlocked'],
+            selected: isSelected,
             expanded: false,
             pricing: devicePricing,
+            activeNetwork: device.networkOptions && device.networkOptions.length > 0
+              ? device.networkOptions[0]
+              : 'Unlocked',
           };
         });
         
         setDevices(transformedDevices);
         
-        // Update pagination info
+        // Update pagination info from backend response
         if (response.pagination) {
           setTotalPages(response.pagination.pages);
           setTotalDevices(response.pagination.total);
+        } else {
+          // Fallback if pagination not in response
+          setTotalDevices(transformedDevices.length);
+          setTotalPages(1);
         }
       } catch (err: any) {
         console.error('Failed to fetch devices:', err);
-        console.error('Error response:', err.response?.data);
         
         // If 401 error, redirect to login
         if (err.response?.status === 401) {
-          console.error('Authentication failed, redirecting to login');
           navigate('/recycler/login');
           return;
         }
@@ -333,11 +290,14 @@ const RecyclerDevicesAccepted: React.FC = () => {
         setError(err.response?.data?.message || err.message || 'Failed to load devices');
       } finally {
         setIsLoading(false);
+        setLoadingConfig(false);
       }
     };
 
-    fetchDevices();
-  }, [debouncedSearchQuery, brandFilter, currentPage, loadingConfig]);
+    if (!loadingConfig) {
+      fetchDevices();
+    }
+  }, [debouncedSearchQuery, brandFilter, currentPage, loadingConfig, navigate]);
 
   const handleLogout = async () => {
     if (isLoggingOut) return;
@@ -351,8 +311,54 @@ const RecyclerDevicesAccepted: React.FC = () => {
     }
   };
 
-  const handleSelectAll = () => {
-    setDevices(devices.map(device => ({ ...device, selected: true })));
+  const handleSelectAll = async () => {
+    setIsSelectingAll(true);
+    try {
+      // Fetch ALL devices from database without pagination
+      const response = await recyclerAuthService.getAllDevices({
+        search: undefined,
+        brand: undefined,
+        page: 1,
+        limit: 999999, // Fetch all devices
+      });
+      
+      // Get saved pricing data
+      const savedPricing = (window as any).__initialPricingData || {};
+      
+      // Transform ALL devices from backend
+      const allDevices = response.data.map((device: any) => {
+        const deviceId = device._id;
+        const devicePricing = savedPricing[deviceId] || [];
+        
+        return {
+          id: deviceId,
+          brand: device.brand?.name || device.brand || '',
+          model: device.name,
+          image: device.image || 'https://via.placeholder.com/100',
+          storageOptions: device.storageOptions || [],
+          conditionOptions: device.conditionOptions || [],
+          networkOptions: device.networkOptions && device.networkOptions.length > 0
+            ? device.networkOptions
+            : ['Unlocked'],
+          selected: true,
+          expanded: false,
+          pricing: devicePricing,
+          activeNetwork: device.networkOptions && device.networkOptions.length > 0
+            ? device.networkOptions[0]
+            : 'Unlocked',
+        };
+      });
+      
+      // Replace current devices with all selected devices
+      setDevices(allDevices);
+      
+      alert(`✅ Selected all ${allDevices.length} devices from database!`);
+    } catch (err: any) {
+      console.error('Failed to fetch all devices:', err);
+      alert(`❌ Failed to select all devices: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setIsSelectingAll(false);
+    }
   };
 
   const handleDeselectAll = () => {
@@ -371,23 +377,31 @@ const RecyclerDevicesAccepted: React.FC = () => {
     ));
   };
 
-  const handlePriceChange = (deviceId: number, condition: string, storage: string, price: number) => {
+  const handleActiveNetworkChange = (deviceId: number, network: string) => {
+    setDevices(devices.map(device =>
+      device.id === deviceId ? { ...device, activeNetwork: network } : device
+    ));
+  };
+
+  const handlePriceChange = (deviceId: number, condition: string, storage: string, network: string, price: number) => {
     setDevices(devices.map(device => {
       if (device.id === deviceId) {
-        const existingPricing = device.pricing.filter(p => 
-          !(p.condition === condition && p.storage === storage)
+        const existingPricing = device.pricing.filter(p =>
+          !(p.condition === condition && p.storage === storage && p.network === network)
         );
         return {
           ...device,
-          pricing: [...existingPricing, { condition, storage, price }]
+          pricing: [...existingPricing, { condition, storage, network, price }]
         };
       }
       return device;
     }));
   };
 
-  const getPriceForConditionAndStorage = (device: Device, condition: string, storage: string): number => {
-    const pricing = device.pricing.find(p => p.condition === condition && p.storage === storage);
+  const getPriceForConditionAndStorage = (device: Device, condition: string, storage: string, network: string): number => {
+    const pricing = device.pricing.find(p =>
+      p.condition === condition && p.storage === storage && p.network === network
+    );
     return pricing ? pricing.price : 0;
   };
 
@@ -408,10 +422,11 @@ const RecyclerDevicesAccepted: React.FC = () => {
       }];
       
       const configData = {
-        selectedDevices: [], // Empty array tells backend to NOT update selections
-        devicePricing, // Only update pricing for this one device
+        selectedDevices: [],
+        devicePricing,
         enabledStorage,
         enabledConditions,
+        enabledNetworks,
       };
       
       console.log('Saving single device:', configData);
@@ -453,6 +468,7 @@ const RecyclerDevicesAccepted: React.FC = () => {
         devicePricing,
         enabledStorage,
         enabledConditions,
+        enabledNetworks,
       };
       
       console.log('Saving configuration:', configData);
@@ -488,17 +504,21 @@ const RecyclerDevicesAccepted: React.FC = () => {
   const toggleCondition = (condition: string) => {
     setEnabledConditions(prev => ({ ...prev, [condition]: !prev[condition] }));
   };
+
+  const toggleNetwork = (network: string) => {
+    setEnabledNetworks(prev => ({ ...prev, [network]: !prev[network] }));
+  };
   
   const getEnabledStorageForDevice = (device: Device) => {
-    // Return device storage options that are enabled in global settings
-    const deviceStorage = device.storageOptions || [];
-    return deviceStorage.filter(s => enabledStorage[s] !== false);
+    return (device.storageOptions || []).filter(s => enabledStorage[s] !== false);
   };
   
   const getConditionsForDevice = (device: Device) => {
-    // Return device conditions that are enabled in global settings
-    const deviceConditions = device.conditionOptions || [];
-    return deviceConditions.filter(c => enabledConditions[c] !== false);
+    return (device.conditionOptions || []).filter(c => enabledConditions[c] !== false);
+  };
+
+  const getEnabledNetworksForDevice = (device: Device) => {
+    return (device.networkOptions || ['Unlocked']).filter(n => enabledNetworks[n] !== false);
   };
 
   return (
@@ -549,12 +569,12 @@ const RecyclerDevicesAccepted: React.FC = () => {
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Total Devices</p>
                     <div className="flex items-center justify-center gap-2">
                       <div className="w-3 h-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full"></div>
-                      <p className="text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">{devices.length}</p>
+                      <p className="text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">{totalDevices}</p>
                     </div>
                   </div>
                   <div className="w-px h-16 bg-gradient-to-b from-transparent via-gray-300 to-transparent"></div>
                   <div className="text-center">
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Selected</p>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Page Count Selected</p>
                     <div className="flex items-center justify-center gap-2">
                       <div className="w-3 h-3 bg-gradient-to-br from-[#1b981b] to-[#157a15] rounded-full animate-pulse"></div>
                       <p className="text-3xl font-bold bg-gradient-to-r from-[#1b981b] to-[#157a15] bg-clip-text text-transparent">{selectedCount}</p>
@@ -571,10 +591,20 @@ const RecyclerDevicesAccepted: React.FC = () => {
                   </button>
                   <button
                     onClick={handleSelectAll}
-                    className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-[#1b981b]/10 to-[#157a15]/10 hover:from-[#1b981b]/20 hover:to-[#157a15]/20 text-[#1b981b] rounded-xl font-semibold transition-all text-sm border border-[#1b981b]/20 hover:border-[#1b981b]/40 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+                    disabled={isSelectingAll}
+                    className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-[#1b981b]/10 to-[#157a15]/10 hover:from-[#1b981b]/20 hover:to-[#157a15]/20 text-[#1b981b] rounded-xl font-semibold transition-all text-sm border border-[#1b981b]/20 hover:border-[#1b981b]/40 shadow-md hover:shadow-lg transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <CheckSquare className="w-4 h-4" />
-                    Select All
+                    {isSelectingAll ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-[#1b981b] border-t-transparent rounded-full animate-spin"></div>
+                        Selecting All...
+                      </>
+                    ) : (
+                      <>
+                        <CheckSquare className="w-4 h-4" />
+                        Select All
+                      </>
+                    )}
                   </button>
                   <button
                     onClick={handleDeselectAll}
@@ -619,7 +649,7 @@ const RecyclerDevicesAccepted: React.FC = () => {
                   <p className="text-sm text-gray-600 mb-6 ml-13">Configure settings that apply to all devices</p>
                 </div>
                 
-                <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-8">
                   {/* Storage Options */}
                   <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 border border-gray-100 shadow-md">
                     <h4 className="text-sm font-bold text-gray-700 mb-4 uppercase tracking-wide flex items-center gap-2">
@@ -667,6 +697,37 @@ const RecyclerDevicesAccepted: React.FC = () => {
                         >
                           <span className="font-bold text-sm">{condition}</span>
                           {enabledConditions[condition] ? (
+                            <ToggleRight className="w-7 h-7 text-[#1b981b] group-hover:scale-110 transition-transform" />
+                          ) : (
+                            <ToggleLeft className="w-7 h-7 group-hover:scale-110 transition-transform" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Network Options */}
+                  <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 border border-gray-100 shadow-md">
+                    <h4 className="text-sm font-bold text-gray-700 mb-4 uppercase tracking-wide flex items-center gap-2">
+                      <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                      Network Options
+                    </h4>
+                    <div className="space-y-3">
+                      {allNetworkOptions.length === 0 && (
+                        <p className="text-xs text-gray-400 italic">No network options found. Add devices with network options first.</p>
+                      )}
+                      {allNetworkOptions.map(network => (
+                        <button
+                          key={network}
+                          onClick={() => toggleNetwork(network)}
+                          className={`group w-full flex items-center justify-between px-5 py-4 rounded-xl border-2 transition-all duration-200 ${
+                            enabledNetworks[network]
+                              ? 'bg-gradient-to-r from-[#1b981b]/10 to-[#157a15]/10 border-[#1b981b] text-[#1b981b] shadow-md hover:shadow-lg'
+                              : 'bg-gray-50 border-gray-200 text-gray-400 hover:border-gray-300'
+                          } transform hover:-translate-y-0.5`}
+                        >
+                          <span className="font-bold text-sm">{network}</span>
+                          {enabledNetworks[network] ? (
                             <ToggleRight className="w-7 h-7 text-[#1b981b] group-hover:scale-110 transition-transform" />
                           ) : (
                             <ToggleLeft className="w-7 h-7 group-hover:scale-110 transition-transform" />
@@ -863,11 +924,31 @@ const RecyclerDevicesAccepted: React.FC = () => {
                         </div>
                         <div>
                           <h4 className="text-lg font-bold text-gray-800">
-                            Set Pricing by Condition & Storage
+                            Set Pricing by Network, Storage & Condition
                           </h4>
-                          <p className="text-xs text-gray-500">Configure prices for all combinations</p>
+                          <p className="text-xs text-gray-500">Select a network tab, then configure prices for all storage × condition combinations</p>
                         </div>
                       </div>
+
+                      {/* Network Tabs */}
+                      {getEnabledNetworksForDevice(device).length > 0 && (
+                        <div className="flex gap-2 mb-4 flex-wrap">
+                          {getEnabledNetworksForDevice(device).map(network => (
+                            <button
+                              key={network}
+                              onClick={() => handleActiveNetworkChange(device.id, network)}
+                              className={`px-4 py-2 rounded-xl text-sm font-semibold border-2 transition-all ${
+                                device.activeNetwork === network
+                                  ? 'bg-gradient-to-r from-[#1b981b] to-[#157a15] text-white border-[#1b981b] shadow-md'
+                                  : 'bg-white text-gray-600 border-gray-200 hover:border-[#1b981b] hover:text-[#1b981b]'
+                              }`}
+                            >
+                              {network}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
                       <div className="overflow-x-auto">
                         <table className="w-full">
                           <thead>
@@ -902,8 +983,8 @@ const RecyclerDevicesAccepted: React.FC = () => {
                                         type="number"
                                         min="0"
                                         step="0.01"
-                                        value={getPriceForConditionAndStorage(device, condition, storage)}
-                                        onChange={(e) => handlePriceChange(device.id, condition, storage, parseFloat(e.target.value) || 0)}
+                                        value={getPriceForConditionAndStorage(device, condition, storage, device.activeNetwork)}
+                                        onChange={(e) => handlePriceChange(device.id, condition, storage, device.activeNetwork, parseFloat(e.target.value) || 0)}
                                         className="w-full pl-7 pr-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1b981b]/50 focus:border-[#1b981b] transition-all text-sm"
                                         placeholder="0.00"
                                       />

@@ -531,6 +531,12 @@ export const adminAPI = {
     updateStorageOption: (id: string, data: any) => api.put(`/admin/utilities/storage-options/${id}`, data),
     deleteStorageOption: (id: string) => api.delete(`/admin/utilities/storage-options/${id}`),
     
+    // Network Options
+    getNetworkOptions: () => api.get('/admin/utilities/network-options'),
+    createNetworkOption: (data: any) => api.post('/admin/utilities/network-options', data),
+    updateNetworkOption: (id: string, data: any) => api.put(`/admin/utilities/network-options/${id}`, data),
+    deleteNetworkOption: (id: string) => api.delete(`/admin/utilities/network-options/${id}`),
+    
     // Device Categories
     getCategories: () => api.get('/admin/utilities/device-categories'),
     createCategory: (data: any) => api.post('/admin/utilities/device-categories', data),
@@ -718,10 +724,11 @@ export const brandAPI = {
 };
 
 export const pricingAPI = {
-  getDevicePrices: (deviceId: string, storage?: string | null, condition?: string | null) => {
+  getDevicePrices: (deviceId: string, storage?: string | null, condition?: string | null, network?: string | null) => {
     const params: any = {};
     if (storage) params.storage = storage;
     if (condition) params.condition = condition;
+    if (network) params.network = network;
     
     return api.get(`/customer/pricing/device/${deviceId}`, { params });
   },

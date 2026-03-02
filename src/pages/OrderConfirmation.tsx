@@ -135,7 +135,7 @@ export default function OrderConfirmation() {
             </div>
             <div className="flex-1">
               <h3 className="font-semibold text-gray-900">{device?.name || 'Device'}</h3>
-              <p className="text-sm text-gray-600">{orderData.storage} • {orderData.deviceCondition}</p>
+              <p className="text-sm text-gray-600">{orderData.storage} • {orderData.deviceCondition} • {orderData.network || 'Unlocked'}</p>
               <p className="text-sm text-gray-600 mt-1">Selling to: {recycler?.companyName || recycler?.name}</p>
             </div>
           </div>

@@ -19,6 +19,7 @@ interface FormData {
   category: string;
   storageOptions: string[];
   conditionOptions: string[];
+  networkOptions: string[];
   image: File | null;
   existingImageUrl?: string;
 }
@@ -35,6 +36,7 @@ const EditDevice: React.FC = () => {
     category: '',
     storageOptions: [],
     conditionOptions: ['Excellent', 'Good', 'Fair', 'Poor'],
+    networkOptions: ['Unlocked'],
     image: null,
     existingImageUrl: '',
   });
@@ -44,6 +46,7 @@ const EditDevice: React.FC = () => {
   const [categories, setCategories] = useState<Array<{value: string; label: string}>>([]);
   const [storageOptions, setStorageOptions] = useState<Array<{value: string; label: string}>>([]);
   const [conditions, setConditions] = useState<Array<{value: string; label: string}>>([]);
+  const [networkOptionsList, setNetworkOptionsList] = useState<Array<{value: string; label: string}>>([]);
   const [submitting, setSubmitting] = useState(false);
 
   // Fetch brands, categories, conditions, and device data
@@ -54,11 +57,12 @@ const EditDevice: React.FC = () => {
         setError(null);
 
         // Fetch brands, categories, storage, conditions, and device in parallel
-        const [brandsResponse, categoriesResponse, storageResponse, conditionsResponse, deviceResponse]: any[] = await Promise.all([
+        const [brandsResponse, categoriesResponse, storageResponse, conditionsResponse, networkResponse, deviceResponse]: any[] = await Promise.all([
           adminAPI.utilities.getBrands(),
           adminAPI.utilities.getCategories(),
           adminAPI.utilities.getStorageOptions(),
           adminAPI.utilities.getConditions(),
+          adminAPI.utilities.getNetworkOptions().catch(() => ({ data: [] })),
           adminAPI.devices.getById(id!),
         ]);
 
@@ -93,6 +97,17 @@ const EditDevice: React.FC = () => {
           }));
         setConditions(transformedConditions);
 
+        // Set network options
+        const networkData = networkResponse.data || [];
+        const transformedNetworks = networkData
+          .filter((item: any) => item && item.name)
+          .map((item: any) => ({ value: item.name, label: item.name }));
+        setNetworkOptionsList(transformedNetworks.length > 0 ? transformedNetworks : [
+          { value: 'Unlocked', label: 'Unlocked' },
+          { value: 'Locked', label: 'Locked' },
+          { value: 'Any Network', label: 'Any Network' },
+        ]);
+
         // Set device data
         const device = deviceResponse.data;
         setFormData({
@@ -102,6 +117,7 @@ const EditDevice: React.FC = () => {
           category: device.category || '',
           storageOptions: device.storageOptions || [],
           conditionOptions: device.conditionOptions || ['Excellent', 'Good', 'Fair', 'Poor'],
+          networkOptions: device.networkOptions || ['Unlocked'],
           image: null,
           existingImageUrl: device.image || '',
         });
@@ -162,9 +178,6 @@ const EditDevice: React.FC = () => {
     if (!formData.name.trim()) {
       newErrors.name = 'Device name is required';
     }
-    if (!formData.description.trim()) {
-      newErrors.description = 'Description is required';
-    }
     if (!formData.brand) {
       newErrors.brand = 'Please select a brand';
     }
@@ -204,9 +217,10 @@ const EditDevice: React.FC = () => {
         name: formData.name.trim(),
         brand: formData.brand,
         category: formData.category,
-        description: formData.description.trim(),
+        description: formData.description.trim() || '',
         storageOptions: formData.storageOptions,
         conditionOptions: formData.conditionOptions,
+        networkOptions: formData.networkOptions,
         image: imageUrl,
       };
 
@@ -426,10 +440,24 @@ const EditDevice: React.FC = () => {
                     <p className="text-xs text-gray-500 mt-1">Select all condition grades for device pricing</p>
                   </div>
 
+                  {/* Network Options */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Network Options <span className="text-xs text-gray-500">(Recyclers can set prices per network)</span>
+                    </label>
+                    <MultiSelectDropdown
+                      options={networkOptionsList}
+                      value={formData.networkOptions}
+                      onChange={(values) => handleInputChange('networkOptions', values)}
+                      placeholder="Select network options"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Select all network types this device supports (e.g., Unlocked, EE, Vodafone)</p>
+                  </div>
+
                   {/* Description */}
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Description *
+                      Description
                     </label>
                     <textarea
                       value={formData.description}

@@ -49,6 +49,7 @@ export default function Checkout() {
         recyclerId: cartItem.recyclerId,
         deviceCondition: cartItem.condition.toLowerCase(),
         storage: cartItem.storage,
+        network: cartItem.network,
         amount: cartItem.price,
         customerName: `${formData.firstName} ${formData.lastName}`,
         customerEmail: formData.email,
@@ -156,7 +157,7 @@ export default function Checkout() {
                   </div>
                   <div className="flex-1">
                     <h3 className="font-semibold text-gray-900">{cartItem.deviceName}</h3>
-                    <p className="text-sm text-gray-600">{cartItem.storage} • {cartItem.condition}</p>
+                    <p className="text-sm text-gray-600">{cartItem.storage} • {cartItem.condition} • {cartItem.network}</p>
                     <p className="text-sm text-gray-600 mt-1">Selling to: {cartItem.recyclerName}</p>
                   </div>
                 </div>
@@ -408,7 +409,7 @@ export default function Checkout() {
                 </div>
                 <div>
                   <p className="font-bold text-gray-900">{cartItem.deviceName}</p>
-                  <p className="text-sm text-gray-600">{cartItem.storage} • {cartItem.condition}</p>
+                  <p className="text-sm text-gray-600">{cartItem.storage} • {cartItem.condition} • {cartItem.network}</p>
                 </div>
               </div>
 

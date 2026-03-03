@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Trash2, Check, Loader2 } from 'lucide-react';
+import { Trash2, Check, Loader2, Printer, Package } from 'lucide-react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { useCart } from '../contexts/CartContext';
@@ -24,6 +24,7 @@ export default function Checkout() {
     accountNumber: '',
   });
 
+  const [postageOption, setPostageOption] = useState<'print_label' | 'send_pack'>('print_label');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [orderCompleted, setOrderCompleted] = useState(false);
@@ -50,6 +51,7 @@ export default function Checkout() {
         deviceCondition: cartItem.condition.toLowerCase(),
         storage: cartItem.storage,
         network: cartItem.network,
+        postageOption,
         amount: cartItem.price,
         customerName: `${formData.firstName} ${formData.lastName}`,
         customerEmail: formData.email,
@@ -80,6 +82,7 @@ export default function Checkout() {
           customerName: `${formData.firstName} ${formData.lastName}`,
           storage: cartItem.storage,
           condition: cartItem.condition,
+          postageOption,
           customerPhone: formData.phoneNumber,
           shippingAddress: `${formData.streetAddress}, ${formData.city}, ${formData.postcode}`,
         };
@@ -138,6 +141,75 @@ export default function Checkout() {
               </div>
             )}
           
+            {/* Postage Option */}
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-1 flex items-center gap-2">
+                Postage Option
+              </h2>
+              <p className="text-sm text-gray-500 mb-4">How would you like to send your device?</p>
+              <div className="space-y-3">
+                {/* Print Label */}
+                <button
+                  type="button"
+                  onClick={() => setPostageOption('print_label')}
+                  className={`w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all duration-200 ${
+                    postageOption === 'print_label'
+                      ? 'border-[#1b981b] bg-[#f0fdf0]'
+                      : 'border-gray-200 bg-white hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                      postageOption === 'print_label' ? 'bg-[#1b981b]' : 'bg-gray-100'
+                    }`}>
+                      <Printer className={`w-5 h-5 ${postageOption === 'print_label' ? 'text-white' : 'text-gray-500'}`} />
+                    </div>
+                    <div className="text-left">
+                      <p className={`font-semibold ${
+                        postageOption === 'print_label' ? 'text-[#1b981b]' : 'text-gray-900'
+                      }`}>Print Our Label</p>
+                      <p className="text-sm text-gray-500">We'll email you a free prepaid label to print at home</p>
+                    </div>
+                  </div>
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                    postageOption === 'print_label' ? 'border-[#1b981b] bg-[#1b981b]' : 'border-gray-300 bg-white'
+                  }`}>
+                    {postageOption === 'print_label' && <div className="w-2 h-2 rounded-full bg-white" />}
+                  </div>
+                </button>
+
+                {/* Send a Pack */}
+                <button
+                  type="button"
+                  onClick={() => setPostageOption('send_pack')}
+                  className={`w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all duration-200 ${
+                    postageOption === 'send_pack'
+                      ? 'border-[#1b981b] bg-[#f0fdf0]'
+                      : 'border-gray-200 bg-white hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                      postageOption === 'send_pack' ? 'bg-[#1b981b]' : 'bg-gray-100'
+                    }`}>
+                      <Package className={`w-5 h-5 ${postageOption === 'send_pack' ? 'text-white' : 'text-gray-500'}`} />
+                    </div>
+                    <div className="text-left">
+                      <p className={`font-semibold ${
+                        postageOption === 'send_pack' ? 'text-[#1b981b]' : 'text-gray-900'
+                      }`}>Send a Pack From Us</p>
+                      <p className="text-sm text-gray-500">We'll post you a free prepaid packaging kit</p>
+                    </div>
+                  </div>
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                    postageOption === 'send_pack' ? 'border-[#1b981b] bg-[#1b981b]' : 'border-gray-300 bg-white'
+                  }`}>
+                    {postageOption === 'send_pack' && <div className="w-2 h-2 rounded-full bg-white" />}
+                  </div>
+                </button>
+              </div>
+            </div>
+
             {/* Your Devices */}
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <h2 className="text-xl font-bold text-gray-900 mb-4">
@@ -288,28 +360,6 @@ export default function Checkout() {
                   </div>
                 </div>
 
-                {/* Order Notes */}
-                <div className="border-t pt-6">
-                  <h3 className="text-lg font-bold text-gray-900 mb-2">
-                    Order Notes
-                  </h3>
-                  <p className="text-sm text-gray-600 mb-4">
-                    Add any special instructions or notes about your device (optional)
-                  </p>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Notes
-                    </label>
-                    <textarea
-                      name="orderNotes"
-                      value={formData.orderNotes}
-                      onChange={handleChange}
-                      rows={4}
-                      placeholder="e.g., Please handle with care, minor scratches on the back..."
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
-                    />
-                  </div>
-                </div>
 
                 {/* Bank Details */}
                 <div className="border-t pt-6">

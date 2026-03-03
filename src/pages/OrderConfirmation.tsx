@@ -140,6 +140,22 @@ export default function OrderConfirmation() {
             </div>
           </div>
 
+          {/* Postage Option */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+            <p className="text-sm text-gray-600 mb-1">Postage Method</p>
+            <div className="flex items-center gap-2">
+              <span className="text-lg">{orderData.postageOption === 'send_pack' ? '📦' : '🖨️'}</span>
+              <span className="font-semibold text-gray-900">
+                {orderData.postageOption === 'send_pack' ? 'Send a Pack From Us' : 'Print Our Label'}
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              {orderData.postageOption === 'send_pack'
+                ? 'A free prepaid packaging kit will be posted to you'
+                : 'A free prepaid label will be emailed to you'}
+            </p>
+          </div>
+
           <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
             <p className="text-sm text-gray-600 mb-1">Sold to</p>
             <div className="flex items-center space-x-2">
@@ -165,7 +181,9 @@ export default function OrderConfirmation() {
                 Sent to <span className="font-semibold text-blue-600">{orderData.customerEmail}</span>
               </p>
               <p className="text-sm text-gray-600">
-                Check your inbox for order details and your free shipping label.
+                {orderData.postageOption === 'send_pack'
+                  ? 'Check your inbox for order details. Your packaging kit will arrive within 2-3 days.'
+                  : 'Check your inbox for order details and your free shipping label.'}
               </p>
             </div>
           </div>
@@ -183,7 +201,9 @@ export default function OrderConfirmation() {
               </div>
               <div>
                 <h3 className="font-semibold text-gray-900 mb-1">
-                  Pack your device securely and attach the shipping label
+                  {orderData.postageOption === 'send_pack'
+                    ? 'Wait for your free packaging kit to arrive, then pack your device'
+                    : 'Print the label from your email and attach it to your parcel'}
                 </h3>
               </div>
             </div>
